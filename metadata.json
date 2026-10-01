@@ -1,0 +1,6 @@
+{
+  "name": "CloudboyX Design",
+  "description": "A visual, block-based Bootstrap 5 website builder with dynamic Google Fonts picker, white-label agency branding, client portal, invoicing, and connected CloudboyX custom modules (ERP Gateway, Map Protection, Connect, Predict).",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

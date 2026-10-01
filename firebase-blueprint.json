@@ -1,0 +1,203 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile with granular role-based access controls.",
+      "type": "object",
+      "properties": {
+        "email": {
+          "type": "string",
+          "description": "Email address of the user"
+        },
+        "displayName": {
+          "type": "string",
+          "description": "Display name of the user"
+        },
+        "role": {
+          "type": "string",
+          "enum": ["admin", "agency_team", "client_editor", "client_readonly", "member"],
+          "description": "Role of the user in the system"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "ISO timestamp of user creation"
+        }
+      },
+      "required": ["email", "role"]
+    },
+    "SystemSetting": {
+      "title": "SystemSetting",
+      "description": "Global platform configurations managed by admins.",
+      "type": "object",
+      "properties": {
+        "isGateActive": {
+          "type": "boolean",
+          "description": "Whether the builder access gate is enabled"
+        },
+        "announcement": {
+          "type": "string",
+          "description": "Optional global announcement text"
+        }
+      }
+    },
+    "AgencyBranding": {
+      "title": "AgencyBranding",
+      "description": "White-label agency branding settings.",
+      "type": "object",
+      "properties": {
+        "agencyName": {
+          "type": "string",
+          "description": "Name of the agency"
+        },
+        "agencyLogoUrl": {
+          "type": "string",
+          "description": "Custom agency logo URL"
+        },
+        "customDomain": {
+          "type": "string",
+          "description": "Custom white-label domain"
+        },
+        "primaryBrandColor": {
+          "type": "string",
+          "description": "Primary theme brand color"
+        },
+        "supportEmail": {
+          "type": "string",
+          "description": "Support contact email"
+        },
+        "clientWelcomeMessage": {
+          "type": "string",
+          "description": "Welcome banner message for clients"
+        }
+      }
+    },
+    "ClientSupportTicket": {
+      "title": "ClientSupportTicket",
+      "description": "Support tickets and change requests submitted by clients.",
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string",
+          "description": "Ticket summary title"
+        },
+        "description": {
+          "type": "string",
+          "description": "Details of the change request"
+        },
+        "category": {
+          "type": "string",
+          "description": "Category of request"
+        },
+        "priority": {
+          "type": "string",
+          "description": "Priority level"
+        },
+        "status": {
+          "type": "string",
+          "description": "Current status"
+        },
+        "clientId": {
+          "type": "string",
+          "description": "User ID of the client"
+        },
+        "clientEmail": {
+          "type": "string",
+          "description": "Email of the client"
+        }
+      },
+      "required": ["title", "description", "status", "clientId"]
+    },
+    "ClientInvoice": {
+      "title": "ClientInvoice",
+      "description": "Billing invoices and hosting subscriptions.",
+      "type": "object",
+      "properties": {
+        "invoiceNumber": {
+          "type": "string",
+          "description": "Unique invoice identifier"
+        },
+        "clientId": {
+          "type": "string",
+          "description": "User ID of the client"
+        },
+        "amount": {
+          "type": "number",
+          "description": "Total invoice amount"
+        },
+        "status": {
+          "type": "string",
+          "description": "Payment status"
+        },
+        "dueDate": {
+          "type": "string",
+          "description": "Payment due date"
+        }
+      },
+      "required": ["invoiceNumber", "clientId", "amount", "status"]
+    },
+    "RecurringInvoiceConfig": {
+      "title": "RecurringInvoiceConfig",
+      "description": "Recurring client billing cycles and invoice automation configurations.",
+      "type": "object",
+      "properties": {
+        "clientId": {
+          "type": "string",
+          "description": "Target client ID"
+        },
+        "clientName": {
+          "type": "string",
+          "description": "Client company or contact name"
+        },
+        "planName": {
+          "type": "string",
+          "description": "Name of recurring package or hosting plan"
+        },
+        "billingCycle": {
+          "type": "string",
+          "enum": ["Monthly", "Quarterly", "Yearly"],
+          "description": "Frequency of recurring billing cycle"
+        },
+        "amount": {
+          "type": "number",
+          "description": "Recurring amount in USD"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["active", "paused", "cancelled"],
+          "description": "Status of recurring subscription"
+        },
+        "nextBillingDate": {
+          "type": "string",
+          "description": "Next scheduled billing cycle date (YYYY-MM-DD)"
+        },
+        "autoCharge": {
+          "type": "boolean",
+          "description": "Whether payment method on file is automatically debited"
+        }
+      },
+      "required": ["clientId", "clientName", "planName", "billingCycle", "amount", "status", "nextBillingDate"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "Collection of user profiles and role allocations"
+    },
+    "/settings/{settingId}": {
+      "schema": "SystemSetting",
+      "description": "Global configuration settings"
+    },
+    "/tickets/{ticketId}": {
+      "schema": "ClientSupportTicket",
+      "description": "Client support and revision tickets"
+    },
+    "/invoices/{invoiceId}": {
+      "schema": "ClientInvoice",
+      "description": "Client invoices and subscription records"
+    },
+    "/recurring_configs/{configId}": {
+      "schema": "RecurringInvoiceConfig",
+      "description": "Recurring billing schedule configurations and automated cycle rules"
+    }
+  }
+}
