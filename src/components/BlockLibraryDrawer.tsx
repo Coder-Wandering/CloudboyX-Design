@@ -24,6 +24,7 @@ import {
   Sliders,
   Layers,
   Code2,
+  Waves,
 } from 'lucide-react';
 import { BLOCK_DEFINITIONS } from '../data/blockDefinitions';
 import { BlockCategory, BlockDefinition, SiteTheme } from '../types';
@@ -57,6 +58,7 @@ const CATEGORIES: { id: 'all' | BlockCategory; label: string; icon: React.Elemen
   { id: 'footers', label: 'Footers', icon: PanelBottom },
   { id: 'navbars', label: 'Navbars & Menus', icon: Menu },
   { id: 'content', label: 'Content & Articles', icon: FileText },
+  { id: 'dividers', label: 'Section Dividers', icon: Waves },
   { id: 'testimonials', label: 'Testimonials', icon: MessageSquareQuote },
   { id: 'team', label: 'Team Showcase', icon: Users },
   { id: 'gallery', label: 'Gallery & Works', icon: ImageIcon },

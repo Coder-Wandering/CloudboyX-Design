@@ -38,6 +38,7 @@ import {
   Trash2,
   Plus,
   BookmarkCheck,
+  Type,
 } from 'lucide-react';
 import { BlockInstance, SiteTheme, SeoSettings, BlockCategory, BlockPreset } from '../types';
 import { BLOCK_DEFINITIONS } from '../data/blockDefinitions';
@@ -51,6 +52,8 @@ import { PageSettingsModal } from './PageSettingsModal';
 import { TemplatesModal } from './TemplatesModal';
 import { CodeModal } from './CodeModal';
 import { CustomCssEditor } from './CustomCssEditor';
+import { FontShowcaseTab } from './FontShowcaseTab';
+import { SeoSettingsTab } from './SeoSettingsTab';
 import { Breakpoint, VisualNode } from '../engine/bootstrapCascade';
 
 export type DesignSidebarTab =
@@ -59,6 +62,7 @@ export type DesignSidebarTab =
   | 'presets'
   | 'layouts'
   | 'theme'
+  | 'fonts'
   | 'css'
   | 'seo'
   | 'templates'
@@ -138,6 +142,12 @@ interface DesignSidebarProps {
   isStudioViewerOpen?: boolean;
   onOpenViewer?: (tab?: DesignSidebarTab) => void;
   onCloseViewer?: () => void;
+  showToast?: (toast: {
+    title: string;
+    description: string;
+    actionLabel?: string;
+    onAction?: () => void;
+  }) => void;
 }
 
 export const DesignSidebar: React.FC<DesignSidebarProps> = ({
@@ -177,8 +187,9 @@ export const DesignSidebar: React.FC<DesignSidebarProps> = ({
   isStudioViewerOpen = false,
   onOpenViewer,
   onCloseViewer,
+  showToast,
 }) => {
-  const [displayMode, setDisplayMode] = useState<'popup' | 'docked'>('popup');
+  const [displayMode, setDisplayMode] = useState<'popup' | 'docked'>('docked');
   const [blockFilterQuery, setBlockFilterQuery] = useState('');
   const [blockCategoryFilter, setBlockCategoryFilter] = useState<'all' | BlockCategory>('all');
   const [isCategoriesExpanded, setIsCategoriesExpanded] = useState(false);
@@ -215,8 +226,8 @@ export const DesignSidebar: React.FC<DesignSidebarProps> = ({
     return counts;
   }, [blockFilterQuery]);
 
-  // Global search matching count
-  const matchingBlocksCount = useMemo(() => {
+  // Filtered available blocks list based on title or category search query and category filter
+  const matchingBlocks = useMemo(() => {
     const q = blockFilterQuery.trim().toLowerCase();
 
     return BLOCK_DEFINITIONS.filter((b) => {
@@ -234,8 +245,10 @@ export const DesignSidebar: React.FC<DesignSidebarProps> = ({
       const categoryMatches = blockCategoryFilter === 'all' || b.category === blockCategoryFilter;
 
       return queryMatches && categoryMatches;
-    }).length;
+    });
   }, [blockFilterQuery, blockCategoryFilter]);
+
+  const matchingBlocksCount = matchingBlocks.length;
 
   // Global keyboard shortcut to trigger block library search (Ctrl+K or '/')
   React.useEffect(() => {
@@ -276,13 +289,16 @@ export const DesignSidebar: React.FC<DesignSidebarProps> = ({
       badge: selectedBlock ? 'Active' : undefined,
     },
     { id: 'blocks', label: 'Add', icon: Layers, badge: blocks.length },
-    { id: 'presets', label: 'Presets', icon: BookmarkCheck },
     { id: 'theme', label: 'Theme', icon: Palette },
-    { id: 'seo', label: 'Page', icon: Globe },
+    { id: 'fonts', label: 'Fonts', icon: Type },
+    { id: 'presets', label: 'Presets', icon: BookmarkCheck },
+    { id: 'seo', label: 'SEO', icon: Globe },
     { id: 'overview', label: 'More', icon: LayoutDashboard },
   ];
 
   const secondaryTabs: { id: DesignSidebarTab; label: string; icon: React.ElementType }[] = [
+    { id: 'seo', label: 'SEO Settings', icon: Globe },
+    { id: 'fonts', label: 'Font Showcase', icon: Type },
     { id: 'presets', label: 'Presets', icon: BookmarkCheck },
     { id: 'overview', label: 'Health', icon: LayoutDashboard },
     { id: 'layouts', label: 'Layouts', icon: LayoutGrid },
@@ -296,7 +312,7 @@ export const DesignSidebar: React.FC<DesignSidebarProps> = ({
   return (
     <aside
       id="embedded-design-sidebar"
-      className={`relative z-30 flex flex-col h-full shadow-2xl transition-all duration-300 w-full sm:w-[260px] md:w-[270px] shrink-0 overflow-hidden ${
+      className={`relative z-30 flex flex-col h-full shadow-xl transition-all duration-300 w-full sm:w-[300px] md:w-[320px] shrink-0 overflow-hidden ${
         isDark
           ? 'bg-[#0b0f19] text-slate-100 border-slate-800'
           : 'bg-white text-slate-900 border-slate-200'
@@ -304,14 +320,20 @@ export const DesignSidebar: React.FC<DesignSidebarProps> = ({
     >
       {/* Top Header of the Design Mode Dock */}
       <div
-        className={`px-3 py-2.5 text-white flex items-center justify-between border-b shrink-0 ${
+        className={`px-3 py-2 text-white flex items-center justify-between border-b shrink-0 ${
           isDark ? 'bg-[#0b0f19] border-slate-800' : 'bg-slate-900 border-slate-800'
         }`}
       >
         <div className="flex items-center gap-2 min-w-0 pr-1">
-          <div className="w-2 h-2 rounded-full bg-emerald-400 shrink-0 animate-pulse" />
+          <div className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" />
           <span className="text-xs font-bold tracking-wider uppercase text-slate-200 truncate">
-            {activeTab === 'settings' && selectedBlock ? selectedBlock.name : 'Design Studio'}
+            {activeTab === 'settings' && selectedBlock
+              ? selectedBlock.name
+              : activeTab === 'seo'
+              ? 'SEO Settings'
+              : activeTab === 'fonts'
+              ? 'Font Showcase'
+              : 'Inspector'}
           </span>
         </div>
 
@@ -321,7 +343,6 @@ export const DesignSidebar: React.FC<DesignSidebarProps> = ({
             type="button"
             onClick={() => {
               onSelectTab('blocks');
-              if (onOpenViewer) onOpenViewer('blocks');
               setTimeout(() => searchInputRef.current?.focus(), 60);
             }}
             className={`p-1 rounded-md transition cursor-pointer ${
@@ -347,7 +368,7 @@ export const DesignSidebar: React.FC<DesignSidebarProps> = ({
                   : 'text-blue-600 bg-blue-100 ring-1 ring-blue-300'
                 : 'text-slate-400 hover:text-white hover:bg-slate-800'
             }`}
-            title="Open in Pop-up Viewer window (like viewpoints window)"
+            title="Pop out into larger Studio window"
           >
             <Maximize2 className="w-3.5 h-3.5" />
           </button>
@@ -364,9 +385,9 @@ export const DesignSidebar: React.FC<DesignSidebarProps> = ({
         </div>
       </div>
 
-      {/* Embedded 6-Tab Segmented Navigation Bar */}
+      {/* Embedded 7-Tab Segmented Navigation Bar */}
       <div
-        className={`p-1 border-b grid grid-cols-6 gap-0.5 shrink-0 ${
+        className={`p-1 border-b grid grid-cols-7 gap-0.5 shrink-0 ${
           isDark
             ? 'bg-[#0b0f19] border-slate-800'
             : 'bg-slate-100 border-slate-200'
@@ -379,10 +400,11 @@ export const DesignSidebar: React.FC<DesignSidebarProps> = ({
             <button
               key={tab.id}
               type="button"
-              id={`tab-btn-${tab.id}`}
+              id={tab.id === 'fonts' ? 'tab-btn-fonts' : tab.id === 'seo' ? 'tab-btn-seo' : `tab-btn-${tab.id}`}
+              data-testid={tab.id === 'fonts' ? 'tab-btn-font-showcase' : tab.id === 'seo' ? 'tab-btn-seo-settings' : `tab-btn-${tab.id}`}
               onClick={() => {
                 onSelectTab(tab.id);
-                if (onOpenViewer) onOpenViewer(tab.id);
+                if (displayMode === 'popup' && onOpenViewer) onOpenViewer(tab.id);
               }}
               className={`flex flex-col items-center justify-center py-1.5 px-0.5 rounded-lg transition text-center relative cursor-pointer ${
                 isActive
@@ -393,7 +415,7 @@ export const DesignSidebar: React.FC<DesignSidebarProps> = ({
                   ? 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/60'
                   : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
               }`}
-              title={tab.label}
+              title={tab.id === 'fonts' ? 'Font Showcase (Live preview Google Fonts)' : tab.id === 'seo' ? 'SEO Settings (Canonical URL, Open Graph, Twitter)' : tab.label}
             >
               <Icon className="w-3.5 h-3.5 mb-0.5 shrink-0" />
               <span className="text-[10px] font-semibold leading-none truncate w-full">{tab.label}</span>
@@ -418,9 +440,11 @@ export const DesignSidebar: React.FC<DesignSidebarProps> = ({
               <button
                 key={st.id}
                 type="button"
+                id={`subtab-btn-${st.id}`}
+                data-testid={st.id === 'seo' ? 'subtab-btn-seo-settings' : `subtab-btn-${st.id}`}
                 onClick={() => {
                   onSelectTab(st.id);
-                  if (onOpenViewer) onOpenViewer(st.id);
+                  if (displayMode === 'popup' && onOpenViewer) onOpenViewer(st.id);
                 }}
                 className={`px-2 py-0.5 rounded-md font-medium transition cursor-pointer whitespace-nowrap ${
                   isSubActive
@@ -438,51 +462,6 @@ export const DesignSidebar: React.FC<DesignSidebarProps> = ({
           })}
         </div>
       )}
-
-      {/* Pop-up Viewer Quick Launch Banner */}
-      <div
-        className={`px-3 py-2 border-b flex items-center justify-between gap-2 shrink-0 ${
-          isDark
-            ? 'bg-slate-900/90 border-slate-800'
-            : 'bg-blue-50/80 border-blue-200/80'
-        }`}
-      >
-        <div className="flex items-center gap-1.5 min-w-0">
-          <span className="relative flex h-2 w-2 shrink-0">
-            <span
-              className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${
-                isStudioViewerOpen ? 'bg-cyan-400' : 'bg-blue-400'
-              }`}
-            />
-            <span
-              className={`relative inline-flex rounded-full h-2 w-2 ${
-                isStudioViewerOpen ? 'bg-cyan-400' : 'bg-blue-600'
-              }`}
-            />
-          </span>
-          <span
-            className={`text-[11px] font-bold truncate ${
-              isDark ? 'text-cyan-300' : 'text-blue-900'
-            }`}
-          >
-            {isStudioViewerOpen ? 'Pop-up Viewer Active' : 'Pop-up Viewer Ready'}
-          </span>
-        </div>
-
-        <button
-          type="button"
-          onClick={() => onOpenViewer && onOpenViewer(activeTab)}
-          className={`px-2.5 py-1 rounded-lg text-[10.5px] font-bold flex items-center gap-1.5 transition shadow-xs cursor-pointer ${
-            isDark
-              ? 'bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold'
-              : 'bg-blue-600 hover:bg-blue-700 text-white font-bold'
-          }`}
-          title="Open in Pop-up Viewer window (like viewpoints window)"
-        >
-          <ExternalLink className="w-3 h-3" />
-          <span>{isStudioViewerOpen ? 'Bring to Front' : 'Pop Out'}</span>
-        </button>
-      </div>
 
       {/* Main Body of Active Tool */}
       <div
@@ -530,7 +509,7 @@ export const DesignSidebar: React.FC<DesignSidebarProps> = ({
                   : activeTab === 'theme'
                   ? 'Theme & Typography'
                   : activeTab === 'seo'
-                  ? 'Page & SEO Metadata'
+                  ? 'SEO Settings'
                   : activeTab === 'layouts'
                   ? 'Block Grid Layouts'
                   : activeTab === 'css'
@@ -553,7 +532,7 @@ export const DesignSidebar: React.FC<DesignSidebarProps> = ({
                   : activeTab === 'theme'
                   ? 'Fonts, colors, and button styling'
                   : activeTab === 'seo'
-                  ? 'Social share cards, title, and meta'
+                  ? 'Canonical URL, Open Graph & Twitter'
                   : activeTab === 'layouts'
                   ? 'Columns, grids, and wireframes'
                   : activeTab === 'css'
@@ -705,47 +684,66 @@ export const DesignSidebar: React.FC<DesignSidebarProps> = ({
               </div>
             )}
 
-            {/* Quick Search & Popular Categories in Blocks Tab */}
+            {/* Searchable Block Library in Blocks Tab */}
             {activeTab === 'blocks' && (
               <div className="space-y-2.5">
-                <div className="relative">
-                  <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-                  <input
-                    ref={searchInputRef}
-                    id="blocks-filter-input"
-                    name="blocksFilter"
-                    type="text"
-                    placeholder="Search blocks (Hero, Navbar...)"
-                    value={blockFilterQuery}
-                    onChange={(e) => setBlockFilterQuery(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Escape') setBlockFilterQuery('');
-                    }}
-                    className={`w-full pl-8 pr-7 py-1.5 text-xs border rounded-lg outline-hidden focus:ring-2 transition font-medium ${
-                      isDark
-                        ? 'bg-slate-900 border-slate-800 text-slate-100 placeholder:text-slate-500 focus:border-cyan-500'
-                        : 'bg-white border-slate-200 text-slate-800 placeholder:text-slate-400 focus:border-blue-500'
-                    }`}
-                  />
-                  {blockFilterQuery && (
-                    <button
-                      type="button"
-                      onClick={() => setBlockFilterQuery('')}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 text-slate-400"
-                    >
-                      <X className="w-3 h-3" />
-                    </button>
-                  )}
-                </div>
-
-                {/* Sub-Category Browsing Chips */}
+                {/* Search Bar Input & Category Dropdown */}
                 <div className="space-y-1.5">
-                  <div className="text-[11px] font-bold text-slate-500 px-0.5 flex items-center justify-between">
-                    <span>Browse Sub-Categories:</span>
-                    <span className="text-[10px] text-slate-400">{BLOCK_DEFINITIONS.length} Blocks</span>
+                  <div className="flex items-center gap-1.5">
+                    <div className="relative flex-1">
+                      <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                      <input
+                        ref={searchInputRef}
+                        id="blocks-filter-input"
+                        name="blocksFilter"
+                        type="text"
+                        placeholder="Filter by title or category..."
+                        value={blockFilterQuery}
+                        onChange={(e) => setBlockFilterQuery(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Escape') setBlockFilterQuery('');
+                        }}
+                        aria-label="Filter blocks by category or title"
+                        className={`w-full pl-8 pr-7 py-1.5 text-xs border rounded-lg outline-hidden focus:ring-2 transition font-medium ${
+                          isDark
+                            ? 'bg-slate-900 border-slate-800 text-slate-100 placeholder:text-slate-500 focus:border-cyan-500'
+                            : 'bg-white border-slate-200 text-slate-800 placeholder:text-slate-400 focus:border-blue-500'
+                        }`}
+                      />
+                      {blockFilterQuery && (
+                        <button
+                          type="button"
+                          onClick={() => setBlockFilterQuery('')}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 text-slate-400 hover:text-slate-200"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      )}
+                    </div>
+
+                    <select
+                      id="popup-category-filter-select"
+                      aria-label="Filter by block category"
+                      value={blockCategoryFilter}
+                      onChange={(e) => setBlockCategoryFilter(e.target.value as any)}
+                      className={`py-1.5 px-2 text-xs border rounded-lg outline-hidden focus:ring-2 transition font-medium cursor-pointer shrink-0 max-w-[125px] ${
+                        isDark
+                          ? 'bg-slate-900 border-slate-800 text-slate-200 focus:border-cyan-500'
+                          : 'bg-white border-slate-200 text-slate-700 focus:border-blue-500'
+                      }`}
+                    >
+                      <option value="all">All ({BLOCK_DEFINITIONS.length})</option>
+                      {SIDEBAR_BLOCK_CATEGORIES.filter((c) => c.id !== 'all').map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.shortLabel} ({categoryFilteredCounts[c.id] || 0})
+                        </option>
+                      ))}
+                    </select>
                   </div>
+
+                  {/* Sub-Category Browsing Chips */}
                   <div className="flex items-center gap-1 overflow-x-auto no-scrollbar py-0.5">
-                    {SIDEBAR_BLOCK_CATEGORIES.slice(0, 6).map((cat) => {
+                    {SIDEBAR_BLOCK_CATEGORIES.map((cat) => {
                       const Icon = cat.icon;
                       const isSelected = blockCategoryFilter === cat.id;
                       const count = categoryFilteredCounts[cat.id] ?? 0;
@@ -753,10 +751,7 @@ export const DesignSidebar: React.FC<DesignSidebarProps> = ({
                         <button
                           key={cat.id}
                           type="button"
-                          onClick={() => {
-                            setBlockCategoryFilter(cat.id);
-                            if (onOpenViewer) onOpenViewer('blocks');
-                          }}
+                          onClick={() => setBlockCategoryFilter(cat.id)}
                           className={`px-2 py-1 rounded-md text-[11px] font-semibold flex items-center gap-1 shrink-0 transition cursor-pointer border ${
                             isSelected
                               ? isDark
@@ -776,35 +771,144 @@ export const DesignSidebar: React.FC<DesignSidebarProps> = ({
                   </div>
                 </div>
 
-                <div className="text-[11px] font-bold text-slate-500 px-1">
-                  Quick Insert:
-                </div>
-                <div className="grid grid-cols-2 gap-1.5">
-                  {[
-                    { label: 'Hero Header', type: 'hero' },
-                    { label: 'Navbar Menu', type: 'navbar' },
-                    { label: 'Feature Cards', type: 'features' },
-                    { label: 'Pricing Table', type: 'pricing' },
-                    { label: 'Testimonials', type: 'testimonials' },
-                    { label: 'Contact Form', type: 'contact' },
-                  ].map((item) => (
+                {/* Live Match Counter & Reset Option */}
+                <div className="flex items-center justify-between text-[11px] px-0.5 text-slate-400">
+                  <span>
+                    Available Blocks: <strong className={isDark ? 'text-cyan-400' : 'text-blue-600'}>{matchingBlocksCount}</strong> of {BLOCK_DEFINITIONS.length}
+                  </span>
+                  {(blockFilterQuery || blockCategoryFilter !== 'all') && (
                     <button
-                      key={item.type}
                       type="button"
                       onClick={() => {
-                        onAddBlock(item.type);
-                        if (onOpenViewer) onOpenViewer('settings');
+                        setBlockFilterQuery('');
+                        setBlockCategoryFilter('all');
                       }}
-                      className={`p-2 rounded-lg border text-left text-xs font-semibold flex items-center justify-between transition cursor-pointer ${
-                        isDark
-                          ? 'bg-slate-900/60 border-slate-800 hover:border-cyan-600 hover:bg-slate-800 text-slate-200'
-                          : 'bg-white border-slate-200 hover:border-blue-400 hover:bg-blue-50/50 text-slate-800 shadow-2xs'
+                      className={`text-[10.5px] font-semibold transition cursor-pointer ${
+                        isDark ? 'text-cyan-400 hover:text-cyan-300' : 'text-blue-600 hover:text-blue-700'
                       }`}
                     >
-                      <span className="truncate">{item.label}</span>
-                      <Plus className="w-3 h-3 shrink-0 text-blue-500" />
+                      Clear Filter
                     </button>
-                  ))}
+                  )}
+                </div>
+
+                {/* Searchable List of Available Blocks */}
+                <div className="space-y-1.5 max-h-64 overflow-y-auto pr-0.5">
+                  {matchingBlocks.length === 0 ? (
+                    <div
+                      className={`p-4 rounded-xl border text-center text-xs space-y-2 ${
+                        isDark ? 'bg-slate-900/40 border-slate-800 text-slate-400' : 'bg-slate-50 border-slate-200 text-slate-500'
+                      }`}
+                    >
+                      <p>
+                        No blocks match &ldquo;<strong>{blockFilterQuery}</strong>&rdquo;
+                        {blockCategoryFilter !== 'all' ? ` in category "${blockCategoryFilter}"` : ''}.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setBlockFilterQuery('');
+                          setBlockCategoryFilter('all');
+                        }}
+                        className={`text-xs px-2.5 py-1 rounded-md font-semibold cursor-pointer ${
+                          isDark ? 'bg-slate-800 text-cyan-400 hover:bg-slate-700' : 'bg-white border text-blue-600 hover:bg-slate-100'
+                        }`}
+                      >
+                        Reset Search Filters
+                      </button>
+                    </div>
+                  ) : (
+                    matchingBlocks.map((block) => {
+                      const catDef = SIDEBAR_BLOCK_CATEGORIES.find((c) => c.id === block.category);
+                      const CatIcon = catDef?.icon || Layers;
+                      return (
+                        <div
+                          key={block.type}
+                          className={`p-2 rounded-lg border text-left text-xs transition flex items-start justify-between gap-2 ${
+                            isDark
+                              ? 'bg-slate-900/60 border-slate-800 hover:border-cyan-600/60 hover:bg-slate-850 text-slate-200'
+                              : 'bg-white border-slate-200 hover:border-blue-400/80 hover:bg-blue-50/40 text-slate-800 shadow-2xs'
+                          }`}
+                        >
+                          <div className="flex items-start gap-2 min-w-0 flex-1">
+                            <div
+                              className={`p-1.5 rounded-md mt-0.5 shrink-0 ${
+                                isDark ? 'bg-slate-800 text-cyan-400' : 'bg-blue-50 text-blue-600'
+                              }`}
+                            >
+                              <CatIcon className="w-3.5 h-3.5" />
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="font-semibold truncate">{block.name}</span>
+                                <span
+                                  className={`text-[9.5px] px-1.5 py-0.2 rounded-full font-medium ${
+                                    isDark ? 'bg-slate-800 text-slate-300' : 'bg-slate-100 text-slate-600'
+                                  }`}
+                                >
+                                  {catDef?.shortLabel || block.category}
+                                </span>
+                              </div>
+                              <p className="text-[11px] text-slate-400 line-clamp-1 mt-0.5">
+                                {block.description}
+                              </p>
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              onAddBlock(block.type);
+                              onSelectTab('settings');
+                            }}
+                            title={`Add ${block.name} to page`}
+                            aria-label={`Add ${block.name}`}
+                            className={`shrink-0 px-2 py-1 rounded-md text-[11px] font-bold flex items-center gap-1 transition cursor-pointer ${
+                              isDark
+                                ? 'bg-cyan-500/15 hover:bg-cyan-500 hover:text-slate-950 text-cyan-300 border border-cyan-500/30'
+                                : 'bg-blue-50 hover:bg-blue-600 hover:text-white text-blue-600 border border-blue-200'
+                            }`}
+                          >
+                            <Plus className="w-3 h-3 stroke-[2.5]" />
+                            <span>Add</span>
+                          </button>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+
+                {/* Quick Insert Presets */}
+                <div className="pt-1 border-t border-slate-800/40">
+                  <div className="text-[11px] font-bold text-slate-500 px-1 mb-1">
+                    Quick Insert:
+                  </div>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {[
+                      { label: 'Hero Header', type: 'hero' },
+                      { label: 'Navbar Menu', type: 'navbar' },
+                      { label: 'Feature Cards', type: 'features' },
+                      { label: 'Pricing Table', type: 'pricing' },
+                      { label: 'Testimonials', type: 'testimonials' },
+                      { label: 'Contact Form', type: 'contact' },
+                    ].map((item) => (
+                      <button
+                        key={item.type}
+                        type="button"
+                        onClick={() => {
+                          onAddBlock(item.type);
+                          if (onOpenViewer) onOpenViewer('settings');
+                        }}
+                        className={`p-2 rounded-lg border text-left text-xs font-semibold flex items-center justify-between transition cursor-pointer ${
+                          isDark
+                            ? 'bg-slate-900/60 border-slate-800 hover:border-cyan-600 hover:bg-slate-800 text-slate-200'
+                            : 'bg-white border-slate-200 hover:border-blue-400 hover:bg-blue-50/50 text-slate-800 shadow-2xs'
+                        }`}
+                      >
+                        <span className="truncate">{item.label}</span>
+                        <Plus className="w-3 h-3 shrink-0 text-blue-500" />
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
             )}
@@ -873,47 +977,68 @@ export const DesignSidebar: React.FC<DesignSidebarProps> = ({
                   : 'border-slate-200 bg-white'
               }`}
             >
-              {/* Search Bar Input with Auto-focus and Clear Button */}
-              <div className="relative">
-                <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-                <input
-                  ref={searchInputRef}
-                  id="blocks-filter-input"
-                  name="blocksFilter"
-                  type="text"
-                  placeholder="Search blocks (Hero, Navbar, Pricing...)"
-                  value={blockFilterQuery}
-                  onChange={(e) => setBlockFilterQuery(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Escape') setBlockFilterQuery('');
-                  }}
-                  aria-label="Search blocks by name or category"
-                  className={`w-full pl-8 pr-7 py-1.5 text-xs border rounded-lg outline-hidden focus:ring-2 transition font-medium ${
-                    isDark
-                      ? 'bg-slate-900 border-slate-800 text-slate-100 placeholder:text-slate-500 focus:border-cyan-500 focus:ring-cyan-500/20'
-                      : 'bg-slate-50 border-slate-200 text-slate-800 placeholder:text-slate-400 focus:border-blue-500 focus:bg-white focus:ring-blue-500/10'
-                  }`}
-                />
-                {blockFilterQuery ? (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setBlockFilterQuery('');
-                      searchInputRef.current?.focus();
+              {/* Search Bar Input with Auto-focus, Category selector, and Clear Button */}
+              <div className="flex items-center gap-1.5">
+                <div className="relative flex-1">
+                  <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                  <input
+                    ref={searchInputRef}
+                    id="blocks-filter-input"
+                    name="blocksFilter"
+                    type="text"
+                    placeholder="Filter by category or title..."
+                    value={blockFilterQuery}
+                    onChange={(e) => setBlockFilterQuery(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Escape') setBlockFilterQuery('');
                     }}
-                    title="Clear filter (Esc)"
-                    aria-label="Clear filter"
-                    className={`absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded-md transition cursor-pointer ${
-                      isDark ? 'text-slate-400 hover:text-slate-200 hover:bg-slate-800' : 'text-slate-400 hover:text-slate-700 hover:bg-slate-200'
+                    aria-label="Filter blocks by category or title"
+                    className={`w-full pl-8 pr-7 py-1.5 text-xs border rounded-lg outline-hidden focus:ring-2 transition font-medium ${
+                      isDark
+                        ? 'bg-slate-900 border-slate-800 text-slate-100 placeholder:text-slate-500 focus:border-cyan-500 focus:ring-cyan-500/20'
+                        : 'bg-slate-50 border-slate-200 text-slate-800 placeholder:text-slate-400 focus:border-blue-500 focus:bg-white focus:ring-blue-500/10'
                     }`}
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-                ) : (
-                  <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[9px] font-mono text-slate-400 bg-slate-800/60 px-1 py-0.2 rounded border border-slate-700/60 hidden sm:inline-block pointer-events-none">
-                    /
-                  </span>
-                )}
+                  />
+                  {blockFilterQuery ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setBlockFilterQuery('');
+                        searchInputRef.current?.focus();
+                      }}
+                      title="Clear filter (Esc)"
+                      aria-label="Clear filter"
+                      className={`absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded-md transition cursor-pointer ${
+                        isDark ? 'text-slate-400 hover:text-slate-200 hover:bg-slate-800' : 'text-slate-400 hover:text-slate-700 hover:bg-slate-200'
+                      }`}
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  ) : (
+                    <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[9px] font-mono text-slate-400 bg-slate-800/60 px-1 py-0.2 rounded border border-slate-700/60 hidden sm:inline-block pointer-events-none">
+                      /
+                    </span>
+                  )}
+                </div>
+
+                <select
+                  id="docked-category-filter-select"
+                  aria-label="Filter by block category"
+                  value={blockCategoryFilter}
+                  onChange={(e) => setBlockCategoryFilter(e.target.value as any)}
+                  className={`py-1.5 px-2 text-xs border rounded-lg outline-hidden focus:ring-2 transition font-medium cursor-pointer shrink-0 max-w-[130px] ${
+                    isDark
+                      ? 'bg-slate-900 border-slate-800 text-slate-200 focus:border-cyan-500'
+                      : 'bg-slate-50 border-slate-200 text-slate-700 focus:border-blue-500'
+                  }`}
+                >
+                  <option value="all">All ({BLOCK_DEFINITIONS.length})</option>
+                  {SIDEBAR_BLOCK_CATEGORIES.filter((c) => c.id !== 'all').map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.shortLabel} ({categoryFilteredCounts[c.id] || 0})
+                    </option>
+                  ))}
+                </select>
               </div>
 
               {/* Sub-Category Tabs Navigation Bar */}
@@ -1160,6 +1285,7 @@ export const DesignSidebar: React.FC<DesignSidebarProps> = ({
             <BlockSettingsDrawer
               block={selectedBlock}
               blocks={blocks}
+              theme={theme}
               isOpen={true}
               onClose={() => {}}
               onSelectBlock={onSelectBlock}
@@ -1194,6 +1320,19 @@ export const DesignSidebar: React.FC<DesignSidebarProps> = ({
           </div>
         )}
 
+        {/* TAB: GOOGLE FONTS SHOWCASE */}
+        {activeTab === 'fonts' && (
+          <div className="h-full overflow-y-auto" id="fonts-tab-pane">
+            <FontShowcaseTab
+              theme={theme}
+              themeMode={themeMode}
+              onUpdateTheme={onUpdateTheme}
+              onSelectTab={onSelectTab}
+              showToast={showToast}
+            />
+          </div>
+        )}
+
         {/* TAB: CUSTOM CSS INJECTOR */}
         {activeTab === 'css' && (
           <div className="h-full">
@@ -1205,24 +1344,17 @@ export const DesignSidebar: React.FC<DesignSidebarProps> = ({
           </div>
         )}
 
-        {/* TAB 4: PAGE & SEO */}
+        {/* TAB: SEO SETTINGS (Canonical URL, Open Graph, Twitter Handle) */}
         {activeTab === 'seo' && (
-          <div className="h-full">
-            <PageSettingsModal
-              isOpen={true}
-              onClose={() => {}}
+          <div className="h-full overflow-y-auto" id="seo-tab-pane">
+            <SeoSettingsTab
               seoSettings={seoSettings}
-              onSave={(newSeo) => {
-                onUpdateSeoSettings(newSeo);
-                if (newSeo.title && newSeo.title.trim() && newSeo.title !== projectTitle) {
-                  onUpdateProjectTitle(newSeo.title.trim());
-                }
-              }}
+              onUpdateSeoSettings={onUpdateSeoSettings}
               projectTitle={projectTitle}
-              isEmbedded={true}
-              initialTab="seo"
+              onUpdateProjectTitle={onUpdateProjectTitle}
+              themeMode={themeMode}
+              showToast={showToast}
               blocks={blocks}
-              onSelectBlock={onSelectBlock}
             />
           </div>
         )}

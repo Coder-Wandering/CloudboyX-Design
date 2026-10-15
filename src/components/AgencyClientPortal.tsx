@@ -36,8 +36,6 @@ import { PredictModule } from './modules/PredictModule';
 import { BrandTimelineModule } from './modules/BrandTimelineModule';
 import { INITIAL_CLIENT_TICKETS, INITIAL_CLIENT_INVOICES, INITIAL_RECURRING_CONFIGS } from '../data/agencyClientData';
 import { STARTER_TEMPLATES } from '../data/starterTemplates';
-import { collection, getDocs, doc, setDoc } from 'firebase/firestore';
-import { db } from '../firebase';
 
 export type PortalTab =
   | 'client_dashboard'
@@ -126,45 +124,55 @@ export const AgencyClientPortal: React.FC<AgencyClientPortalProps> = ({
     return INITIAL_RECURRING_CONFIGS;
   });
 
-  // Users Directory State
-  const [usersList, setUsersList] = useState<PortalUserItem[]>([
-    {
-      id: 'usr-1',
-      email: 'david@cloudboyx.io',
-      displayName: 'David (Super Admin)',
-      role: 'admin',
-      createdAt: 'Sep 15, 2026',
-      status: 'active',
-      organization: 'CloudboyX Core Agency',
-    },
-    {
-      id: 'usr-2',
-      email: 'sarah.miller@lumina.io',
-      displayName: 'Sarah Miller',
-      role: 'client_editor',
-      createdAt: 'Sep 12, 2026',
-      status: 'active',
-      organization: 'Lumina Health Clinic',
-    },
-    {
-      id: 'usr-3',
-      email: 'alex.thorne@apexfin.com',
-      displayName: 'Alex Thorne',
-      role: 'client_readonly',
-      createdAt: 'Sep 10, 2026',
-      status: 'active',
-      organization: 'Apex Finance Corp',
-    },
-    {
-      id: 'usr-4',
-      email: 'marcus.design@agency.io',
-      displayName: 'Marcus Vance',
-      role: 'agency_team',
-      createdAt: 'Sep 08, 2026',
-      status: 'active',
-      organization: 'Agency Creative Staff',
-    },
-  ]);
+  // Users Directory State (100% LocalStorage persisted)
+  const [usersList, setUsersList] = useState<PortalUserItem[]>(() => {
+    const saved = localStorage.getItem('agency_portal_users');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        // fallback
+      }
+    }
+    return [
+      {
+        id: 'usr-1',
+        email: 'david@cloudboyx.io',
+        displayName: 'David (Super Admin)',
+        role: 'admin',
+        createdAt: 'Sep 15, 2026',
+        status: 'active',
+        organization: 'CloudboyX Core Agency',
+      },
+      {
+        id: 'usr-2',
+        email: 'sarah.miller@lumina.io',
+        displayName: 'Sarah Miller',
+        role: 'client_editor',
+        createdAt: 'Sep 12, 2026',
+        status: 'active',
+        organization: 'Lumina Health Clinic',
+      },
+      {
+        id: 'usr-3',
+        email: 'alex.thorne@apexfin.com',
+        displayName: 'Alex Thorne',
+        role: 'client_readonly',
+        createdAt: 'Sep 10, 2026',
+        status: 'active',
+        organization: 'Apex Finance Corp',
+      },
+      {
+        id: 'usr-4',
+        email: 'marcus.design@agency.io',
+        displayName: 'Marcus Vance',
+        role: 'agency_team',
+        createdAt: 'Sep 08, 2026',
+        status: 'active',
+        organization: 'Agency Creative Staff',
+      },
+    ];
+  });
 
   // Access Gate & Announcement Settings
   const [isGateActive, setIsGateActive] = useState<boolean>(() => {
@@ -196,6 +204,11 @@ export const AgencyClientPortal: React.FC<AgencyClientPortalProps> = ({
     localStorage.setItem('agency_recurring_configs', JSON.stringify(recurringConfigs));
   }, [recurringConfigs]);
 
+  // Sync portal users directory to local storage
+  useEffect(() => {
+    localStorage.setItem('agency_portal_users', JSON.stringify(usersList));
+  }, [usersList]);
+
   // Ticket handlers
   const handleAddTicket = (
     newTicket: Omit<ClientSupportTicket, 'id' | 'createdAt' | 'updatedAt' | 'messages'>
@@ -216,13 +229,6 @@ export const AgencyClientPortal: React.FC<AgencyClientPortalProps> = ({
       ],
     };
     setTickets([created, ...tickets]);
-
-    // Try saving to firestore
-    try {
-      setDoc(doc(db, 'tickets', created.id), created);
-    } catch (e) {
-      console.warn('Firestore ticket sync fallback to local', e);
-    }
   };
 
   const handleUpdateTicketStatus = (
@@ -304,22 +310,12 @@ export const AgencyClientPortal: React.FC<AgencyClientPortalProps> = ({
       createdAt: new Date().toISOString(),
     };
     setRecurringConfigs((prev) => [newConfig, ...prev]);
-    try {
-      setDoc(doc(db, 'recurring_configs', newConfig.id), newConfig);
-    } catch (e) {
-      console.warn('Firestore recurring config sync fallback to local', e);
-    }
   };
 
   const handleUpdateRecurringConfig = (configId: string, updates: Partial<RecurringInvoiceConfig>) => {
     setRecurringConfigs((prev) =>
       prev.map((c) => (c.id === configId ? { ...c, ...updates } : c))
     );
-    try {
-      setDoc(doc(db, 'recurring_configs', configId), updates, { merge: true });
-    } catch (e) {
-      console.warn('Firestore recurring config update fallback to local', e);
-    }
   };
 
   const handleTogglePauseRecurringConfig = (configId: string) => {
@@ -383,11 +379,6 @@ export const AgencyClientPortal: React.FC<AgencyClientPortalProps> = ({
     setUsersList((prev) =>
       prev.map((u) => (u.id === userId ? { ...u, role: newRole } : u))
     );
-    try {
-      await setDoc(doc(db, 'users', userId), { role: newRole }, { merge: true });
-    } catch (e) {
-      console.warn('Could not save user role to firestore:', e);
-    }
   };
 
   const handleAddUser = (userItem: Omit<PortalUserItem, 'id' | 'createdAt' | 'status'>) => {

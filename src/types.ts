@@ -10,6 +10,7 @@ export type BlockCategory =
   | 'navbars'
   | 'features'
   | 'content'
+  | 'dividers'
   | 'pricing'
   | 'gallery'
   | 'testimonials'
@@ -33,8 +34,8 @@ export interface BlockSettings {
   bgSize?: 'cover' | 'contain' | 'auto';
   bgPosition?: 'center' | 'top' | 'bottom';
   bgRepeat?: 'no-repeat' | 'repeat';
-  paddingTop: number; // 0 to 5 (mapped to pt-*)
-  paddingBottom: number; // 0 to 5 (mapped to pb-*)
+  paddingTop: number | string; // 0 to 5 or 'pt-*' / 'py-*'
+  paddingBottom: number | string; // 0 to 5 or 'pb-*' / 'py-*'
   paddingLeft?: number; // 0 to 5 (mapped to ps-*)
   paddingRight?: number; // 0 to 5 (mapped to pe-*)
   marginTop?: number; // 0 to 5 (mapped to mt-*)
@@ -43,7 +44,7 @@ export interface BlockSettings {
   marginRight?: number | 'auto'; // 0 to 5 or 'auto' (mapped to me-*)
   containerWidth: 'container' | 'container-fluid';
   textColor: 'dark' | 'light';
-  textAlign: 'start' | 'center' | 'end';
+  textAlign: 'start' | 'center' | 'end' | 'left' | 'right';
   showTitle: boolean;
   showSubtitle: boolean;
   showDescription: boolean;
@@ -60,6 +61,29 @@ export interface BlockSettings {
   justifyContent?: 'start' | 'center' | 'end' | 'between' | 'around';
   alignItems?: 'start' | 'center' | 'stretch';
   cardHeight?: 'auto' | 'h-100';
+  semanticTag?: 'section' | 'header' | 'footer' | 'article' | 'aside';
+  backgroundColor?: string;
+  backgroundGradient?: string;
+  backgroundImage?: string;
+  fullHeight?: boolean;
+  bgParallax?: boolean;
+  bgOverlay?: boolean;
+  darkSection?: boolean;
+}
+
+export type CommentTag = 'TODO' | 'NOTE' | 'FIXME' | 'REVIEW' | 'DESIGN' | 'API';
+
+export interface BlockComment {
+  id: string;
+  blockId: string;
+  blockName?: string;
+  text: string;
+  author: string;
+  role?: string;
+  tag: CommentTag;
+  createdAt: number;
+  updatedAt?: number;
+  resolved?: boolean;
 }
 
 export interface BlockInstance {
@@ -72,6 +96,7 @@ export interface BlockInstance {
   visualNode?: VisualNode;
   customHtml?: string;
   customCss?: string;
+  comments?: BlockComment[];
 }
 
 export interface BlockPreset {
@@ -156,6 +181,7 @@ export interface SeoSettings {
   keywords?: string;
   author?: string;
   canonicalUrl?: string;
+  twitterHandle?: string;
   headHtml?: string;
   bodyStartHtml?: string;
   bodyEndHtml?: string;
@@ -169,6 +195,7 @@ export const DEFAULT_SEO_SETTINGS: SeoSettings = {
   keywords: 'bootstrap 5, website builder, responsive design, landing page',
   author: 'Bootstrap 5 Studio',
   canonicalUrl: '',
+  twitterHandle: '',
 };
 
 export type GranularRole = 'admin' | 'agency_team' | 'client_editor' | 'client_readonly';
@@ -424,5 +451,21 @@ export interface ClonedTemplateProject {
 }
 
 export const CLONED_PROJECTS_STORAGE_KEY = 'cloudboyx_cloned_dashboard_projects';
+
+export interface ProjectRevision {
+  id: string;
+  timestamp: number;
+  title: string;
+  blockCount: number;
+  blocks: BlockInstance[];
+  theme: SiteTheme;
+  seoSettings?: SeoSettings;
+  type: 'autosave' | 'manual' | 'restore_point';
+  label?: string;
+  description?: string;
+  sectionNames?: string[];
+}
+
+export const REVISIONS_STORAGE_KEY = 'bootstrap5_visual_editor_revisions';
 
 

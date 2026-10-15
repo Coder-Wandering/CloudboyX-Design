@@ -1,9 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { User, onAuthStateChanged } from 'firebase/auth';
-import { doc, getDoc, setDoc, getDocFromServer } from 'firebase/firestore';
 import {
   auth,
-  db,
   signInWithGoogle as fbSignInWithGoogle,
   signInWithEmail as fbSignInWithEmail,
   signUpWithEmail as fbSignUpWithEmail,
@@ -45,6 +43,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 const ADMIN_EMAIL = 'david@cloudboyx.io';
 const BRANDING_STORAGE_KEY = 'agency_whitelabel_branding';
+const LOCAL_USERS_STORAGE_KEY = 'cloudboyx_local_users';
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
@@ -71,46 +70,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return DEFAULT_AGENCY_BRANDING;
   });
 
-  // Load branding from Firestore settings if available
-  useEffect(() => {
-    const loadRemoteBranding = async () => {
-      try {
-        const snap = await getDoc(doc(db, 'settings', 'agency_branding'));
-        if (snap.exists()) {
-          const data = snap.data() as Partial<AgencyBranding>;
-          setAgencyBranding((prev) => ({ ...prev, ...data }));
-        }
-      } catch (e) {
-        // Fallback to localStorage
-      }
-    };
-    loadRemoteBranding();
-  }, []);
-
   const updateAgencyBranding = async (patch: Partial<AgencyBranding>) => {
     const updated = { ...agencyBranding, ...patch };
     setAgencyBranding(updated);
     try {
       localStorage.setItem(BRANDING_STORAGE_KEY, JSON.stringify(updated));
-      await setDoc(doc(db, 'settings', 'agency_branding'), updated, { merge: true });
     } catch (e) {
-      console.warn('Could not sync branding to firestore:', e);
+      console.warn('Could not save branding to localStorage:', e);
     }
   };
-
-  // Test Firestore connection on boot
-  useEffect(() => {
-    async function testConnection() {
-      try {
-        await getDocFromServer(doc(db, 'test', 'connection'));
-      } catch (error) {
-        if (error instanceof Error && error.message.includes('the client is offline')) {
-          console.error('Please check your Firebase configuration.');
-        }
-      }
-    }
-    testConnection();
-  }, []);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
@@ -123,38 +91,33 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             : 'client_editor';
 
         try {
-          const userDocRef = doc(db, 'users', currentUser.uid);
-          const snap = await getDoc(userDocRef);
+          const rawUsers = localStorage.getItem(LOCAL_USERS_STORAGE_KEY);
+          const usersMap: Record<string, { email: string; displayName: string; role: GranularRole; createdAt: string; lastLogin: string }> =
+            rawUsers ? JSON.parse(rawUsers) : {};
+          const existing = usersMap[currentUser.uid];
 
-          if (snap.exists()) {
-            const data = snap.data();
-            if (data?.role) {
-              if (data.role === 'admin' || currentUser.email?.toLowerCase() === ADMIN_EMAIL.toLowerCase()) {
-                userRole = 'admin';
-              } else if (data.role === 'agency_team') {
-                userRole = 'agency_team';
-              } else if (data.role === 'client_readonly') {
-                userRole = 'client_readonly';
-              } else {
-                userRole = 'client_editor';
-              }
+          if (existing?.role) {
+            if (existing.role === 'admin' || currentUser.email?.toLowerCase() === ADMIN_EMAIL.toLowerCase()) {
+              userRole = 'admin';
+            } else if (existing.role === 'agency_team') {
+              userRole = 'agency_team';
+            } else if (existing.role === 'client_readonly') {
+              userRole = 'client_readonly';
+            } else {
+              userRole = 'client_editor';
             }
-          } else {
-            // Initialize user doc
-            await setDoc(
-              userDocRef,
-              {
-                email: currentUser.email || '',
-                displayName: currentUser.displayName || '',
-                role: userRole,
-                createdAt: new Date().toISOString(),
-                lastLogin: new Date().toISOString(),
-              },
-              { merge: true }
-            );
           }
+
+          usersMap[currentUser.uid] = {
+            email: currentUser.email || '',
+            displayName: currentUser.displayName || '',
+            role: userRole,
+            createdAt: existing?.createdAt || new Date().toISOString(),
+            lastLogin: new Date().toISOString(),
+          };
+          localStorage.setItem(LOCAL_USERS_STORAGE_KEY, JSON.stringify(usersMap));
         } catch (e) {
-          console.warn('Could not sync user profile in firestore:', e);
+          console.warn('Could not save user profile in localStorage:', e);
         }
 
         setRole(userRole);

@@ -465,9 +465,22 @@ export const BlockCodeEditorModal: React.FC<BlockCodeEditorModalProps> = ({
 
   const handleCopyCode = (pane: 'html' | 'css') => {
     const text = pane === 'html' ? htmlCode : cssCode;
-    navigator.clipboard.writeText(text);
+    try {
+      if (navigator?.clipboard?.writeText) {
+        navigator.clipboard.writeText(text);
+      } else {
+        const textarea = document.createElement('textarea');
+        textarea.value = text;
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+      }
+    } catch {
+      // Fallback
+    }
     setCopiedPane(pane);
-    setTimeout(() => setCopiedPane(null), 1500);
+    setTimeout(() => setCopiedPane(null), 2000);
   };
 
   const handleInsertHtmlSnippet = (snippet: string) => {
@@ -570,6 +583,27 @@ export const BlockCodeEditorModal: React.FC<BlockCodeEditorModalProps> = ({
                 <span className="hidden sm:inline">Reset Default</span>
               </button>
             )}
+
+            {/* Copy CSS Button */}
+            <button
+              type="button"
+              id="btn-copy-css-header"
+              onClick={() => handleCopyCode('css')}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-sky-300 hover:text-sky-200 border border-slate-700 transition cursor-pointer"
+              title="Copy only the custom CSS content to clipboard"
+            >
+              {copiedPane === 'css' ? (
+                <>
+                  <Check className="w-3.5 h-3.5 text-emerald-400" />
+                  <span className="text-emerald-400">CSS Copied!</span>
+                </>
+              ) : (
+                <>
+                  <Copy className="w-3.5 h-3.5 text-sky-400" />
+                  <span>Copy CSS</span>
+                </>
+              )}
+            </button>
 
             {/* Save & Apply Button */}
             <button
@@ -763,11 +797,13 @@ export const BlockCodeEditorModal: React.FC<BlockCodeEditorModalProps> = ({
                 </button>
                 <button
                   type="button"
+                  id="btn-copy-css"
                   onClick={() => handleCopyCode('css')}
-                  className="flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold bg-slate-800 hover:bg-slate-700 text-slate-300 transition cursor-pointer"
+                  className="flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold bg-slate-800 hover:bg-slate-700 text-sky-300 hover:text-sky-200 border border-slate-700 transition cursor-pointer"
+                  title="Copy only custom CSS to clipboard"
                 >
-                  <Copy className="w-3 h-3" />
-                  <span>{copiedPane === 'css' ? 'Copied!' : 'Copy'}</span>
+                  <Copy className="w-3 h-3 text-sky-400" />
+                  <span>{copiedPane === 'css' ? 'CSS Copied!' : 'Copy CSS'}</span>
                 </button>
               </div>
             </div>

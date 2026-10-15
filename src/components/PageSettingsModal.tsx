@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   X,
   Globe,
@@ -27,11 +27,15 @@ import {
   FileText,
   Gauge,
   ChevronRight,
+  Download,
+  Upload,
 } from 'lucide-react';
 import { BlockInstance, SeoSettings, DEFAULT_SEO_SETTINGS } from '../types';
 import { ProjectDashboardPanel } from './ProjectDashboardPanel';
 import { calculateProjectAnalytics } from '../utils/projectAnalytics';
 import { GoogleSearchPreviewCard } from './GoogleSearchPreviewCard';
+import { SeoVisualMockup } from './SeoVisualMockup';
+import { SocialMediaCardPreviewModal } from './SocialMediaCardPreviewModal';
 
 interface PageSettingsModalProps {
   isOpen: boolean;
@@ -133,8 +137,32 @@ export const PageSettingsModal: React.FC<PageSettingsModalProps> = ({
     initialTab || (isEmbedded ? 'seo' : 'dashboard')
   );
   const [copiedCode, setCopiedCode] = useState(false);
+  const [isSocialPreviewOpen, setIsSocialPreviewOpen] = useState(false);
   const [isImgError, setIsImgError] = useState(false);
   const [isFaviconError, setIsFaviconError] = useState(false);
+  const faviconFileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleFaviconFileUpload = (file: File) => {
+    if (!file) return;
+    const isImage =
+      file.type.startsWith('image/') ||
+      file.name.endsWith('.ico') ||
+      file.name.endsWith('.svg') ||
+      file.name.endsWith('.png') ||
+      file.name.endsWith('.webp');
+
+    if (!isImage) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const dataUri = e.target?.result as string;
+      if (dataUri) {
+        setFormData((prev) => ({ ...prev, faviconUrl: dataUri }));
+        setIsFaviconError(false);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
 
   const quickAnalytics = calculateProjectAnalytics(blocks, formData);
 
@@ -199,12 +227,73 @@ ${formData.canonicalUrl ? `<meta property="og:url" content="${formData.canonical
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="${displayTitle}">
 <meta name="twitter:description" content="${displayDescription}">
-<meta name="twitter:image" content="${displayOgImage}">`;
+<meta name="twitter:image" content="${displayOgImage}">
+${formData.twitterHandle ? `<meta name="twitter:site" content="${formData.twitterHandle.startsWith('@') ? formData.twitterHandle : `@${formData.twitterHandle}`}">\n<meta name="twitter:creator" content="${formData.twitterHandle.startsWith('@') ? formData.twitterHandle : `@${formData.twitterHandle}`}">` : ''}`;
 
   const handleCopyCode = () => {
     navigator.clipboard.writeText(generatedHeadHtml);
     setCopiedCode(true);
     setTimeout(() => setCopiedCode(false), 2000);
+  };
+
+  const handleExportSeoMetadata = () => {
+    const cleanTwHandle = (formData.twitterHandle || '').replace(/^@/, '').trim();
+    const formattedTwHandle = cleanTwHandle ? `@${cleanTwHandle}` : '';
+
+    const metadataPayload = {
+      $schema: 'https://json-schema.org/draft/2020-12/schema',
+      schemaVersion: '1.0.0',
+      exportedAt: new Date().toISOString(),
+      projectTitle: displayTitle,
+      canonicalUrl: (formData.canonicalUrl || '').trim(),
+      openGraph: {
+        title: displayTitle,
+        description: displayDescription,
+        imageUrl: displayOgImage,
+        canonicalUrl: (formData.canonicalUrl || '').trim(),
+        type: 'website',
+        locale: 'en_US',
+        siteName: displayTitle,
+      },
+      socialMedia: {
+        twitterHandle: formattedTwHandle,
+        twitterUsername: cleanTwHandle,
+        twitterSite: formattedTwHandle,
+        twitterCreator: formattedTwHandle,
+      },
+      twitterCard: {
+        card: 'summary_large_image',
+        site: formattedTwHandle,
+        creator: formattedTwHandle,
+        title: displayTitle,
+        description: displayDescription,
+        image: displayOgImage,
+      },
+      searchEngineSettings: {
+        title: displayTitle,
+        description: displayDescription,
+        canonicalUrl: (formData.canonicalUrl || '').trim(),
+        author: (formData.author || '').trim() || undefined,
+        faviconUrl: (formData.faviconUrl || '').trim() || undefined,
+        robots: 'index, follow',
+      },
+      htmlSnippet: generatedHeadHtml,
+    };
+
+    const jsonString = JSON.stringify(metadataPayload, null, 2);
+    const blob = new Blob([jsonString], { type: 'application/json;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    const safeName = (projectTitle || 'site')
+      .toLowerCase()
+      .replace(/[^a-z0-9_-]+/g, '-')
+      .replace(/^-+|-+$/g, '') || 'site';
+    link.href = url;
+    link.download = `${safeName}-seo-metadata.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
 
   if (!isOpen) return null;
@@ -426,24 +515,35 @@ ${formData.canonicalUrl ? `<meta property="og:url" content="${formData.canonical
                 </p>
               </div>
 
-              {/* Visual Google Search Result Preview Card */}
+              {/* Visual Mock-up Feature: Google Search Snippet or Social Media Card */}
               <div className="pt-2">
                 <div className="mb-2 flex items-center justify-between">
                   <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                    <Search className="w-3.5 h-3.5 text-blue-600" />
-                    <span>Search Engine Snippet Preview</span>
+                    <Sparkles className="w-3.5 h-3.5 text-blue-600" />
+                    <span>Visual Search & Social Mock-Up</span>
                   </span>
-                  <span className="text-[11px] text-slate-400">
-                    Live Google SERP simulation
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      id="modal-btn-preview-social-cards-top"
+                      data-testid="modal-btn-preview-social-cards-top"
+                      onClick={() => setIsSocialPreviewOpen(true)}
+                      className="text-[11px] text-indigo-600 hover:text-indigo-800 font-semibold flex items-center gap-1 cursor-pointer bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-100"
+                    >
+                      <Share2 className="w-3 h-3 text-indigo-500" />
+                      <span>Preview Social Media Cards</span>
+                    </button>
+                  </div>
                 </div>
-                <GoogleSearchPreviewCard
+                <SeoVisualMockup
                   title={formData.title}
                   description={formData.description}
                   url={formData.canonicalUrl}
                   faviconUrl={formData.faviconUrl}
                   ogImageUrl={formData.ogImageUrl}
                   author={formData.author || projectTitle}
+                  twitterHandle={formData.twitterHandle}
+                  defaultMockup="google"
                 />
               </div>
 
@@ -534,12 +634,57 @@ ${formData.canonicalUrl ? `<meta property="og:url" content="${formData.canonical
                     </label>
                     <input
                       type="url"
+                      id="modal-seo-canonical-url"
                       value={formData.canonicalUrl || ''}
                       onChange={(e) => setFormData({ ...formData, canonicalUrl: e.target.value })}
                       placeholder="https://mywebsite.com"
                       className="w-full text-xs px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg focus:bg-white focus:border-blue-500 outline-none"
                     />
                   </div>
+                  <div>
+                    <label className="text-[11px] font-medium text-slate-600 block mb-1">
+                      Twitter Handle
+                    </label>
+                    <input
+                      type="text"
+                      id="modal-seo-twitter-handle"
+                      value={formData.twitterHandle || ''}
+                      onChange={(e) => setFormData({ ...formData, twitterHandle: e.target.value })}
+                      placeholder="@username"
+                      className="w-full text-xs px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg focus:bg-white focus:border-blue-500 outline-none"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Export & Preview SEO Action Card */}
+              <div className="pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3">
+                <div className="text-[11px] text-slate-500">
+                  Preview social media cards or export complete site SEO configuration as a standardized JSON package.
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    type="button"
+                    id="modal-btn-preview-social-cards"
+                    data-testid="modal-btn-preview-social-cards"
+                    onClick={() => setIsSocialPreviewOpen(true)}
+                    className="px-3 py-1.5 rounded-lg border border-indigo-200 hover:border-indigo-400 bg-indigo-50/80 hover:bg-indigo-100/80 text-indigo-700 text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer shadow-2xs"
+                    title="Preview how page appears on Facebook and Twitter"
+                  >
+                    <Share2 className="w-3.5 h-3.5 text-indigo-600" />
+                    <span>Preview Social Media Cards</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    id="modal-btn-export-seo-metadata"
+                    data-testid="modal-btn-export-seo-metadata"
+                    onClick={handleExportSeoMetadata}
+                    className="px-3 py-1.5 rounded-lg border border-slate-300 hover:border-blue-500 bg-white hover:bg-blue-50 text-slate-700 hover:text-blue-700 text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer shadow-2xs shrink-0"
+                  >
+                    <Download className="w-3.5 h-3.5 text-blue-600" />
+                    <span>Export SEO Metadata</span>
+                  </button>
                 </div>
               </div>
             </div>
@@ -563,6 +708,18 @@ ${formData.canonicalUrl ? `<meta property="og:url" content="${formData.canonical
 
               {/* Favicon URL Input & Live Indicator */}
               <div>
+                <input
+                  ref={faviconFileInputRef}
+                  type="file"
+                  accept="image/*,.ico,.svg,.png,.webp,.jpg,.jpeg"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) handleFaviconFileUpload(file);
+                    e.target.value = '';
+                  }}
+                />
+
                 <div className="flex items-center justify-between mb-1.5">
                   <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
                     <span>Favicon URL (ICO, SVG, or PNG)</span>
@@ -586,7 +743,7 @@ ${formData.canonicalUrl ? `<meta property="og:url" content="${formData.canonical
                   <input
                     type="url"
                     id="input-seo-favicon-url"
-                    value={formData.faviconUrl}
+                    value={formData.faviconUrl.startsWith('data:') ? 'Custom uploaded icon file (embedded data URI)' : formData.faviconUrl}
                     onChange={(e) => {
                       setFormData({ ...formData, faviconUrl: e.target.value });
                       setIsFaviconError(false);
@@ -594,6 +751,15 @@ ${formData.canonicalUrl ? `<meta property="og:url" content="${formData.canonical
                     placeholder="https://example.com/favicon.svg or .png"
                     className="flex-1 text-xs px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition"
                   />
+                  <button
+                    type="button"
+                    onClick={() => faviconFileInputRef.current?.click()}
+                    className="px-3 py-2 text-xs font-semibold bg-blue-600 hover:bg-blue-700 text-white rounded-lg flex items-center gap-1.5 transition cursor-pointer shadow-xs shrink-0"
+                    title="Upload custom image file as favicon"
+                  >
+                    <Upload className="w-3.5 h-3.5" />
+                    <span>Upload</span>
+                  </button>
                   {formData.faviconUrl && (
                     <button
                       type="button"
@@ -682,63 +848,29 @@ ${formData.canonicalUrl ? `<meta property="og:url" content="${formData.canonical
 
           {/* TAB 3: Live Previews */}
           {activeTab === 'preview' && (
-            <div className="space-y-6">
-              {/* Google Search Result Preview */}
-              <div>
-                <GoogleSearchPreviewCard
-                  title={formData.title}
-                  description={formData.description}
-                  url={formData.canonicalUrl}
-                  faviconUrl={formData.faviconUrl}
-                  ogImageUrl={formData.ogImageUrl}
-                  author={formData.author || projectTitle}
-                />
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                    <Search className="w-3.5 h-3.5 text-blue-600" />
+                    <span>Multi-Platform Live Previews</span>
+                  </h4>
+                  <p className="text-[11px] text-slate-500">
+                    Switch between search engine snippets and social platform link cards.
+                  </p>
+                </div>
               </div>
 
-              {/* Social Media Card Preview */}
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <h4 className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                    <Share2 className="w-3.5 h-3.5 text-indigo-600" />
-                    <span>Open Graph Social Card (Facebook, X / Twitter, LinkedIn, Slack)</span>
-                  </h4>
-                  <span className="text-[11px] text-slate-400">Large Image Card</span>
-                </div>
-                <div className="border border-slate-200 rounded-xl overflow-hidden shadow-xs bg-white max-w-lg mx-auto">
-                  <div className="aspect-[1.91/1] w-full bg-slate-100 relative overflow-hidden border-b border-slate-100 flex items-center justify-center">
-                    {!isImgError ? (
-                      <img
-                        src={displayOgImage}
-                        alt="OG Preview"
-                        className="w-full h-full object-cover"
-                        onError={() => setIsImgError(true)}
-                      />
-                    ) : (
-                      <div className="flex flex-col items-center text-slate-400 p-4 text-center">
-                        <ImageIcon className="w-8 h-8 mb-1" />
-                        <span className="text-xs font-medium">Image preview unavailable</span>
-                      </div>
-                    )}
-                  </div>
-                  <div className="p-3.5 bg-slate-50">
-                    <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">
-                      {formData.canonicalUrl
-                        ? new URL(
-                            formData.canonicalUrl.startsWith('http')
-                              ? formData.canonicalUrl
-                              : `https://${formData.canonicalUrl}`
-                          ).hostname
-                        : 'mywebsite.com'}
-                    </span>
-                    <h4 className="text-sm font-bold text-slate-900 leading-tight mt-0.5 truncate">
-                      {displayTitle}
-                    </h4>
-                    <p className="text-xs text-slate-600 line-clamp-2 mt-1 leading-snug">
-                      {displayDescription}
-                    </p>
-                  </div>
-                </div>
-              </div>
+              <SeoVisualMockup
+                title={formData.title}
+                description={formData.description}
+                url={formData.canonicalUrl}
+                faviconUrl={formData.faviconUrl}
+                ogImageUrl={formData.ogImageUrl}
+                author={formData.author || projectTitle}
+                defaultMockup="google"
+                showTabs={true}
+              />
             </div>
           )}
 
@@ -799,6 +931,18 @@ ${formData.canonicalUrl ? `<meta property="og:url" content="${formData.canonical
             </button>
           </div>
         </div>
+
+        {/* Social Media Card Preview Modal */}
+        <SocialMediaCardPreviewModal
+          isOpen={isSocialPreviewOpen}
+          onClose={() => setIsSocialPreviewOpen(false)}
+          title={displayTitle}
+          description={displayDescription}
+          canonicalUrl={formData.canonicalUrl || ''}
+          ogImageUrl={formData.ogImageUrl || ''}
+          twitterHandle={formData.twitterHandle || ''}
+          author={formData.author || projectTitle}
+        />
       </div>
   );
 

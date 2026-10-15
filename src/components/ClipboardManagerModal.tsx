@@ -41,6 +41,8 @@ const CATEGORY_STYLES: Record<BlockCategory, { bg: string; text: string; border:
   team: { bg: 'bg-cyan-500/10', text: 'text-cyan-600 dark:text-cyan-400', border: 'border-cyan-500/30' },
   forms: { bg: 'bg-rose-500/10', text: 'text-rose-600 dark:text-rose-400', border: 'border-rose-500/30' },
   footers: { bg: 'bg-slate-600/10', text: 'text-slate-700 dark:text-slate-200', border: 'border-slate-600/30' },
+  dividers: { bg: 'bg-violet-500/10', text: 'text-violet-600 dark:text-violet-400', border: 'border-violet-500/30' },
+  html: { bg: 'bg-teal-500/10', text: 'text-teal-600 dark:text-teal-400', border: 'border-teal-500/30' },
 };
 
 function formatRelativeTime(timestamp: number): string {

@@ -18,8 +18,6 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { GranularRole, ROLE_PERMISSIONS } from '../../types';
-import { doc, setDoc } from 'firebase/firestore';
-import { db } from '../../firebase';
 
 export interface PortalUserItem {
   id: string;

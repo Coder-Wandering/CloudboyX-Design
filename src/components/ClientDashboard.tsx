@@ -42,8 +42,6 @@ import {
   INITIAL_PROJECT_MILESTONES,
   INITIAL_EXPORTED_FILES,
 } from '../data/agencyClientData';
-import { doc, setDoc } from 'firebase/firestore';
-import { db } from '../firebase';
 
 export interface ClientDashboardProps {
   projectTitle?: string;
@@ -184,17 +182,6 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({
     });
 
     setMilestones(updated);
-    try {
-      setDoc(doc(db, 'project_milestones', approvingMilestone.id), {
-        status: 'completed',
-        clientApproved: true,
-        approvedAt: new Date().toISOString(),
-        clientFeedback: approvalFeedback.trim(),
-      }, { merge: true });
-    } catch (e) {
-      console.warn('Firestore milestone update fallback to local', e);
-    }
-
     setApprovingMilestone(null);
     setApprovalFeedback('');
     setDownloadToast(`Approved Milestone: ${approvingMilestone.title}`);

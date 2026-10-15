@@ -18,9 +18,17 @@ export function generateCompleteHtml(
   isEditor: boolean = false,
   selectedBlockId: string | null = null,
   seoSettings?: SeoSettings,
-  animationMeta?: BlockAnimationMeta | null
+  animationMeta?: BlockAnimationMeta | null,
+  selectedBlockIds?: string[],
+  isMultiSelectMode: boolean = false
 ): string {
   const primaryRgb = hexToRgb(theme.primaryColor || '#2222FF');
+  const effectiveSelectedIds =
+    selectedBlockIds && selectedBlockIds.length > 0
+      ? selectedBlockIds
+      : selectedBlockId
+      ? [selectedBlockId]
+      : [];
   const finalTitle = seoSettings?.title?.trim() || pageTitle || 'Bootstrap 5 Website';
   const metaDescription =
     seoSettings?.description?.trim() ||
@@ -48,7 +56,25 @@ export function generateCompleteHtml(
         if (block.customHtml.includes(`data-block-id="${block.id}"`)) {
           html = block.customHtml;
         } else {
-          html = `<section id="block-${block.id}" data-block-id="${block.id}">\n${block.customHtml}\n</section>`;
+          const containerTag = block.settings?.semanticTag || 'section';
+          html = `<${containerTag} id="block-${block.id}" data-block-id="${block.id}">\n${block.customHtml}\n</${containerTag}>`;
+        }
+      }
+
+      // Apply user-selected semantic container tag (<section>, <header>, <footer>, <article>, <aside>)
+      if (block.settings?.semanticTag) {
+        const targetTag = block.settings.semanticTag;
+        const openTagRegex = new RegExp(`<([a-zA-Z0-9]+)([^>]*?data-block-id="${block.id}"[^>]*)>`);
+        const openMatch = html.match(openTagRegex);
+        if (openMatch) {
+          const originalTag = openMatch[1];
+          if (originalTag.toLowerCase() !== targetTag.toLowerCase()) {
+            html = html.replace(openMatch[0], `<${targetTag}${openMatch[2]}>`);
+            const closeTagRegex = new RegExp(`</${originalTag}>(\\s*)$`, 'i');
+            if (closeTagRegex.test(html)) {
+              html = html.replace(closeTagRegex, `</${targetTag}>$1`);
+            }
+          }
         }
       }
 
@@ -100,6 +126,15 @@ export function generateCompleteHtml(
           new RegExp(`data-block-id="${block.id}"`),
           `data-block-id="${block.id}" data-animate="${animationMeta.type}"`
         );
+      }
+
+      if (isEditor && effectiveSelectedIds.includes(block.id)) {
+        if (/class="[^"]*"/.test(html)) {
+          html = html.replace(
+            new RegExp(`(data-block-id="${block.id}"[^>]*class=")([^"]*)(")`),
+            `$1$2 is-selected-block$3`
+          );
+        }
       }
 
       return html;
@@ -220,6 +255,62 @@ export function generateCompleteHtml(
     .studio-block-drag-handle:active {
       cursor: grabbing;
     }
+
+    /* Multi-Select Block Chrome Styles */
+    .studio-block-multiselect-label {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      margin-right: 2px;
+      user-select: none;
+      position: relative;
+    }
+    .studio-block-multiselect-checkbox {
+      position: absolute;
+      opacity: 0;
+      width: 0;
+      height: 0;
+      pointer-events: none;
+    }
+    .studio-block-multiselect-box {
+      width: 15px;
+      height: 15px;
+      border-radius: 4px;
+      border: 1.5px solid rgba(255, 255, 255, 0.45);
+      background: rgba(15, 23, 42, 0.6);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.15s ease;
+      color: transparent;
+    }
+    .studio-block-multiselect-box svg {
+      width: 10px;
+      height: 10px;
+      stroke: #ffffff;
+      opacity: 0;
+      transition: opacity 0.15s ease, transform 0.15s ease;
+      transform: scale(0.6);
+    }
+    .studio-block-multiselect-checkbox:checked + .studio-block-multiselect-box {
+      background: #0d6efd;
+      border-color: #0d6efd;
+      box-shadow: 0 0 6px rgba(13, 110, 253, 0.5);
+    }
+    .studio-block-multiselect-checkbox:checked + .studio-block-multiselect-box svg {
+      opacity: 1;
+      transform: scale(1);
+    }
+    body.studio-multiselect-active [data-block-id] {
+      cursor: pointer !important;
+    }
+    body.studio-multiselect-active .studio-block-instance-chrome {
+      opacity: 1 !important;
+    }
+    body.studio-multiselect-active [data-block-id]:hover {
+      outline: 2px dashed #0d6efd !important;
+    }
     .studio-block-drag-handle svg {
       width: 13px;
       height: 13px;
@@ -265,6 +356,106 @@ export function generateCompleteHtml(
     .studio-block-code-btn svg {
       width: 12px;
       height: 12px;
+      flex-shrink: 0;
+      pointer-events: none;
+    }
+
+    /* Mobirise-Style On-Canvas Block Action Toolbar (Top-Right of every block) */
+    .studio-block-action-toolbar {
+      position: absolute;
+      top: 10px;
+      right: 14px;
+      z-index: 1045;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      background: rgba(15, 23, 42, 0.94);
+      color: #f8fafc;
+      padding: 4px 6px;
+      border-radius: 9999px;
+      border: 1px solid rgba(148, 163, 184, 0.35);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35), 0 2px 6px rgba(0, 0, 0, 0.2);
+      backdrop-filter: blur(12px);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-size: 11px;
+      line-height: 1;
+      opacity: 0;
+      transform: translateY(-4px) scale(0.96);
+      transition: opacity 0.18s cubic-bezier(0.16, 1, 0.3, 1), transform 0.18s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.15s ease;
+      user-select: none;
+      pointer-events: auto;
+    }
+    [data-block-id]:hover .studio-block-action-toolbar,
+    [data-block-id].is-selected-block .studio-block-action-toolbar {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+      border-color: rgba(59, 130, 246, 0.7);
+    }
+    .studio-block-gear-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+      padding: 5px 11px;
+      border-radius: 9999px;
+      background: linear-gradient(135deg, #0d6efd 0%, #00b4d8 100%);
+      color: #ffffff;
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      box-shadow: 0 2px 8px rgba(13, 110, 253, 0.45);
+      cursor: pointer;
+      font-weight: 700;
+      font-size: 11px;
+      letter-spacing: 0.02em;
+      transition: all 0.15s ease;
+    }
+    .studio-block-gear-btn:hover {
+      background: linear-gradient(135deg, #1d4ed8 0%, #0284c7 100%);
+      transform: scale(1.04);
+      box-shadow: 0 4px 14px rgba(13, 110, 253, 0.65);
+    }
+    .studio-block-gear-btn svg {
+      width: 13px;
+      height: 13px;
+      flex-shrink: 0;
+      transition: transform 0.4s ease;
+    }
+    .studio-block-gear-btn:hover svg {
+      transform: rotate(60deg);
+    }
+    .studio-block-action-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      background: rgba(30, 41, 59, 0.85);
+      color: #cbd5e1;
+      border: 1px solid rgba(148, 163, 184, 0.2);
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    .studio-block-action-btn:hover {
+      background: #334155;
+      color: #ffffff;
+      border-color: rgba(148, 163, 184, 0.5);
+      transform: scale(1.08);
+    }
+    .studio-block-action-btn.btn-delete:hover {
+      background: #ef4444;
+      color: #ffffff;
+      border-color: #ef4444;
+      box-shadow: 0 2px 8px rgba(239, 68, 68, 0.5);
+    }
+    .studio-block-action-btn.btn-code:hover {
+      background: #00E5D1;
+      color: #0f172a;
+      border-color: #00E5D1;
+      box-shadow: 0 2px 8px rgba(0, 229, 209, 0.4);
+    }
+    .studio-block-action-btn svg {
+      width: 13px;
+      height: 13px;
       flex-shrink: 0;
       pointer-events: none;
     }
@@ -407,6 +598,85 @@ export function generateCompleteHtml(
       backdrop-filter: blur(6px);
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     }
+
+    /* Bootstrap 5 12-Column Responsive Visual Grid Guidelines Overlay */
+    .studio-bootstrap-grid-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      pointer-events: none;
+      z-index: 9990;
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 0.22s cubic-bezier(0.16, 1, 0.3, 1), visibility 0.22s;
+    }
+    .studio-bootstrap-grid-overlay.is-visible {
+      opacity: 1;
+      visibility: visible;
+    }
+    .studio-grid-container {
+      height: 100vh;
+      position: relative;
+    }
+    .studio-grid-col {
+      height: 100%;
+      position: relative;
+    }
+    .studio-col-stripe {
+      height: 100%;
+      background: rgba(13, 110, 253, 0.05);
+      border-left: 1px dashed rgba(13, 110, 253, 0.32);
+      border-right: 1px dashed rgba(13, 110, 253, 0.32);
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 0;
+      box-shadow: inset 0 0 16px rgba(13, 110, 253, 0.02);
+      transition: background-color 0.15s ease, border-color 0.15s ease;
+    }
+    .studio-col-badge {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 10px;
+      font-weight: 800;
+      color: #0d6efd;
+      background: rgba(255, 255, 255, 0.95);
+      border: 1px solid rgba(13, 110, 253, 0.4);
+      padding: 2px 5px;
+      border-radius: 4px;
+      box-shadow: 0 2px 8px rgba(13, 110, 253, 0.15);
+      backdrop-filter: blur(4px);
+      letter-spacing: -0.02em;
+    }
+    .studio-col-name {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 9px;
+      font-weight: 700;
+      color: #0d6efd;
+      background: rgba(255, 255, 255, 0.9);
+      border: 1px solid rgba(13, 110, 253, 0.25);
+      padding: 2px 4px;
+      border-radius: 3px;
+      margin-bottom: 8px;
+    }
+    [data-bs-theme="dark"] .studio-col-stripe {
+      background: rgba(0, 229, 209, 0.06);
+      border-left: 1px dashed rgba(0, 229, 209, 0.35);
+      border-right: 1px dashed rgba(0, 229, 209, 0.35);
+    }
+    [data-bs-theme="dark"] .studio-col-badge {
+      color: #00E5D1;
+      background: rgba(15, 23, 42, 0.96);
+      border-color: rgba(0, 229, 209, 0.45);
+      box-shadow: 0 2px 8px rgba(0, 229, 209, 0.2);
+    }
+    [data-bs-theme="dark"] .studio-col-name {
+      color: #00E5D1;
+      background: rgba(15, 23, 42, 0.9);
+      border-color: rgba(0, 229, 209, 0.3);
+    }
   `
     : '';
 
@@ -414,7 +684,8 @@ export function generateCompleteHtml(
     ? `
     <script>
       (function() {
-        var selectedId = ${JSON.stringify(selectedBlockId)};
+        var selectedIds = ${JSON.stringify(effectiveSelectedIds)};
+        var isMultiSelectMode = ${JSON.stringify(Boolean(isMultiSelectMode))};
         var animationMeta = ${JSON.stringify(animationMeta || null)};
 
         function triggerAnimation(meta) {
@@ -464,12 +735,22 @@ export function generateCompleteHtml(
           } catch(e) {}
         }
 
-        function updateSelection(id) {
+        function updateSelection(ids) {
+          if (!Array.isArray(ids)) {
+            ids = ids ? [ids] : [];
+          }
+          selectedIds = ids;
           document.querySelectorAll('[data-block-id]').forEach(function(el) {
-            if (el.getAttribute('data-block-id') === id) {
+            var bId = el.getAttribute('data-block-id');
+            var isSel = ids.indexOf(bId) !== -1;
+            if (isSel) {
               el.classList.add('is-selected-block');
             } else {
               el.classList.remove('is-selected-block');
+            }
+            var cb = el.querySelector('.studio-block-multiselect-checkbox');
+            if (cb) {
+              cb.checked = isSel;
             }
           });
         }
@@ -497,6 +778,33 @@ export function generateCompleteHtml(
             var chrome = document.createElement('div');
             chrome.className = 'studio-block-instance-chrome';
             chrome.setAttribute('contenteditable', 'false');
+
+            var isInitiallySelected = selectedIds.indexOf(blockId) !== -1;
+
+            var selectLabel = document.createElement('label');
+            selectLabel.className = 'studio-block-multiselect-label';
+            selectLabel.setAttribute('title', 'Select section for multi-selection group actions');
+            selectLabel.innerHTML =
+              '<input type="checkbox" class="studio-block-multiselect-checkbox"' + (isInitiallySelected ? ' checked' : '') + ' />' +
+              '<span class="studio-block-multiselect-box">' +
+              '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">' +
+              '<polyline points="20 6 9 17 4 12"/>' +
+              '</svg>' +
+              '</span>';
+
+            var checkboxEl = selectLabel.querySelector('input');
+            checkboxEl.addEventListener('click', function(ev) {
+              ev.stopPropagation();
+            });
+            checkboxEl.addEventListener('change', function(ev) {
+              ev.stopPropagation();
+              window.parent.postMessage({
+                type: 'BLOCK_MULTI_SELECT_TOGGLE',
+                blockId: blockId,
+                checked: checkboxEl.checked
+              }, '*');
+            });
+            chrome.appendChild(selectLabel);
 
             var dragHandle = document.createElement('div');
             dragHandle.className = 'studio-block-drag-handle';
@@ -545,6 +853,112 @@ export function generateCompleteHtml(
             chrome.appendChild(titleSpan);
             chrome.appendChild(codeBtn);
             blockEl.appendChild(chrome);
+
+            // On-Canvas Floating Action Toolbar (Mobirise Gear Parameters, Up, Down, Duplicate, Code, Delete)
+            var toolbar = document.createElement('div');
+            toolbar.className = 'studio-block-action-toolbar';
+            toolbar.setAttribute('contenteditable', 'false');
+
+            // Gear (Block Parameters)
+            var gearBtn = document.createElement('button');
+            gearBtn.type = 'button';
+            gearBtn.className = 'studio-block-gear-btn';
+            gearBtn.setAttribute('title', 'Block Parameters (Settings & Styling)');
+            gearBtn.setAttribute('data-action', 'open-block-parameters');
+            gearBtn.innerHTML =
+              '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">' +
+              '<circle cx="12" cy="12" r="3"/>' +
+              '<path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>' +
+              '</svg>' +
+              '<span>Parameters</span>';
+
+            gearBtn.addEventListener('click', function(ev) {
+              ev.preventDefault();
+              ev.stopPropagation();
+              updateSelection(blockId);
+              window.parent.postMessage({
+                type: 'OPEN_BLOCK_PARAMETERS',
+                blockId: blockId
+              }, '*');
+            });
+
+            // Move Up
+            var upBtn = document.createElement('button');
+            upBtn.type = 'button';
+            upBtn.className = 'studio-block-action-btn';
+            upBtn.setAttribute('title', 'Move Section Up');
+            if (blockIndex === 0) {
+              upBtn.style.opacity = '0.35';
+              upBtn.style.pointerEvents = 'none';
+            }
+            upBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>';
+            upBtn.addEventListener('click', function(ev) {
+              ev.preventDefault();
+              ev.stopPropagation();
+              window.parent.postMessage({ type: 'MOVE_BLOCK_UP', blockId: blockId }, '*');
+            });
+
+            // Move Down
+            var downBtn = document.createElement('button');
+            downBtn.type = 'button';
+            downBtn.className = 'studio-block-action-btn';
+            downBtn.setAttribute('title', 'Move Section Down');
+            if (blockIndex === blockEls.length - 1) {
+              downBtn.style.opacity = '0.35';
+              downBtn.style.pointerEvents = 'none';
+            }
+            downBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></svg>';
+            downBtn.addEventListener('click', function(ev) {
+              ev.preventDefault();
+              ev.stopPropagation();
+              window.parent.postMessage({ type: 'MOVE_BLOCK_DOWN', blockId: blockId }, '*');
+            });
+
+            // Duplicate
+            var dupBtn = document.createElement('button');
+            dupBtn.type = 'button';
+            dupBtn.className = 'studio-block-action-btn';
+            dupBtn.setAttribute('title', 'Duplicate Section');
+            dupBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
+            dupBtn.addEventListener('click', function(ev) {
+              ev.preventDefault();
+              ev.stopPropagation();
+              window.parent.postMessage({ type: 'DUPLICATE_BLOCK', blockId: blockId }, '*');
+            });
+
+            // HTML/CSS Code
+            var codeActionBtn = document.createElement('button');
+            codeActionBtn.type = 'button';
+            codeActionBtn.className = 'studio-block-action-btn btn-code';
+            codeActionBtn.setAttribute('title', 'Edit Block HTML/CSS Code');
+            codeActionBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>';
+            codeActionBtn.addEventListener('click', function(ev) {
+              ev.preventDefault();
+              ev.stopPropagation();
+              updateSelection(blockId);
+              window.parent.postMessage({ type: 'OPEN_BLOCK_CODE_EDITOR', blockId: blockId }, '*');
+            });
+
+            // Delete
+            var delBtn = document.createElement('button');
+            delBtn.type = 'button';
+            delBtn.className = 'studio-block-action-btn btn-delete';
+            delBtn.setAttribute('title', 'Delete Section');
+            delBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>';
+            delBtn.addEventListener('click', function(ev) {
+              ev.preventDefault();
+              ev.stopPropagation();
+              window.parent.postMessage({ type: 'DELETE_BLOCK', blockId: blockId }, '*');
+            });
+
+            toolbar.appendChild(gearBtn);
+            toolbar.appendChild(upBtn);
+            toolbar.appendChild(downBtn);
+            toolbar.appendChild(dupBtn);
+            toolbar.appendChild(codeActionBtn);
+            toolbar.appendChild(delBtn);
+
+            blockEl.appendChild(toolbar);
 
             // Enable block draggable when pressing the drag handle
             dragHandle.addEventListener('mousedown', function() {
@@ -733,10 +1147,14 @@ export function generateCompleteHtml(
           var blockEl = e.target.closest('[data-block-id]');
           if (blockEl) {
             var blockId = blockEl.getAttribute('data-block-id');
-            updateSelection(blockId);
+            var isMultiToggle = Boolean(e.shiftKey || e.ctrlKey || e.metaKey || isMultiSelectMode);
             window.parent.postMessage({
               type: 'BLOCK_CLICKED',
-              blockId: blockId
+              blockId: blockId,
+              isMultiToggle: isMultiToggle,
+              shiftKey: e.shiftKey,
+              ctrlKey: e.ctrlKey,
+              metaKey: e.metaKey
             }, '*');
           }
         });
@@ -777,9 +1195,67 @@ export function generateCompleteHtml(
           }
         });
 
+        // Track mouse hover and drag state to dynamically toggle Bootstrap 5 grid guidelines
+        var gridOverlayEl = document.getElementById('studio-bootstrap-grid-overlay');
+        var isGridEnabled = true;
+        var isHoveringDoc = false;
+        var isDraggingDoc = false;
+        var forceGridVisible = false;
+
+        function updateGridOverlayVisibility() {
+          if (!gridOverlayEl) return;
+          var shouldShow = isGridEnabled && (isHoveringDoc || isDraggingDoc || forceGridVisible);
+          if (shouldShow) {
+            gridOverlayEl.classList.add('is-visible');
+          } else {
+            gridOverlayEl.classList.remove('is-visible');
+          }
+        }
+
+        document.addEventListener('mouseenter', function() {
+          isHoveringDoc = true;
+          updateGridOverlayVisibility();
+          window.parent.postMessage({ type: 'IFRAME_MOUSE_ENTER' }, '*');
+        });
+
+        document.addEventListener('mouseleave', function() {
+          isHoveringDoc = false;
+          updateGridOverlayVisibility();
+          window.parent.postMessage({ type: 'IFRAME_MOUSE_LEAVE' }, '*');
+        });
+
+        document.addEventListener('dragenter', function() {
+          isDraggingDoc = true;
+          updateGridOverlayVisibility();
+        });
+
+        document.addEventListener('dragover', function() {
+          isDraggingDoc = true;
+          updateGridOverlayVisibility();
+        });
+
+        document.addEventListener('drop', function() {
+          isDraggingDoc = false;
+          updateGridOverlayVisibility();
+        });
+
+        document.addEventListener('dragend', function() {
+          isDraggingDoc = false;
+          updateGridOverlayVisibility();
+        });
+
         // Listen for messages from parent
         window.addEventListener('message', function(e) {
           if (!e.data || typeof e.data !== 'object') return;
+          if (e.data.type === 'SET_GRID_OVERLAY') {
+            if (typeof e.data.enabled === 'boolean') {
+              isGridEnabled = e.data.enabled;
+            }
+            if (typeof e.data.visible === 'boolean') {
+              forceGridVisible = e.data.visible;
+            }
+            updateGridOverlayVisibility();
+          }
           if (e.data.type === 'ANIMATE_BLOCK') {
             triggerAnimation(e.data.meta);
           }
@@ -791,7 +1267,19 @@ export function generateCompleteHtml(
             }
           }
           if (e.data.type === 'SELECT_BLOCK') {
-            updateSelection(e.data.blockId);
+            updateSelection([e.data.blockId]);
+          }
+          if (e.data.type === 'SET_SELECTED_BLOCKS') {
+            var ids = e.data.blockIds || (e.data.blockId ? [e.data.blockId] : []);
+            if (typeof e.data.isMultiSelect === 'boolean') {
+              isMultiSelectMode = e.data.isMultiSelect;
+              document.body.classList.toggle('studio-multiselect-active', isMultiSelectMode);
+            }
+            updateSelection(ids);
+          }
+          if (e.data.type === 'TOGGLE_MULTI_SELECT_MODE') {
+            isMultiSelectMode = Boolean(e.data.enabled);
+            document.body.classList.toggle('studio-multiselect-active', isMultiSelectMode);
           }
         });
       })();
@@ -851,6 +1339,7 @@ export function generateCompleteHtml(
   <meta name="twitter:title" content="${finalTitle}">
   <meta name="twitter:description" content="${metaDescription}">
   <meta name="twitter:image" content="${ogImage}">
+  ${seoSettings?.twitterHandle ? `<meta name="twitter:site" content="${seoSettings.twitterHandle.startsWith('@') ? seoSettings.twitterHandle : `@${seoSettings.twitterHandle}`}">\n  <meta name="twitter:creator" content="${seoSettings.twitterHandle.startsWith('@') ? seoSettings.twitterHandle : `@${seoSettings.twitterHandle}`}">` : ''}
 
   <!-- Dynamic Google Fonts CDN Fetcher -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -943,6 +1432,31 @@ ${theme.customCss || ''}
 </head>
 <body>
 ${renderedBlocksHtml}
+
+${
+  isEditor
+    ? `
+<!-- Bootstrap 5 12-Column Responsive Visual Grid Guidelines Overlay -->
+<div id="studio-bootstrap-grid-overlay" class="studio-bootstrap-grid-overlay" aria-hidden="true">
+  <div class="container studio-grid-container">
+    <div class="row h-100 g-3">
+      <div class="col-1 studio-grid-col"><div class="studio-col-stripe"><span class="studio-col-badge">1</span><span class="studio-col-name">col-1</span></div></div>
+      <div class="col-1 studio-grid-col"><div class="studio-col-stripe"><span class="studio-col-badge">2</span><span class="studio-col-name">col-2</span></div></div>
+      <div class="col-1 studio-grid-col"><div class="studio-col-stripe"><span class="studio-col-badge">3</span><span class="studio-col-name">col-3</span></div></div>
+      <div class="col-1 studio-grid-col"><div class="studio-col-stripe"><span class="studio-col-badge">4</span><span class="studio-col-name">col-4</span></div></div>
+      <div class="col-1 studio-grid-col"><div class="studio-col-stripe"><span class="studio-col-badge">5</span><span class="studio-col-name">col-5</span></div></div>
+      <div class="col-1 studio-grid-col"><div class="studio-col-stripe"><span class="studio-col-badge">6</span><span class="studio-col-name">col-6</span></div></div>
+      <div class="col-1 studio-grid-col"><div class="studio-col-stripe"><span class="studio-col-badge">7</span><span class="studio-col-name">col-7</span></div></div>
+      <div class="col-1 studio-grid-col"><div class="studio-col-stripe"><span class="studio-col-badge">8</span><span class="studio-col-name">col-8</span></div></div>
+      <div class="col-1 studio-grid-col"><div class="studio-col-stripe"><span class="studio-col-badge">9</span><span class="studio-col-name">col-9</span></div></div>
+      <div class="col-1 studio-grid-col"><div class="studio-col-stripe"><span class="studio-col-badge">10</span><span class="studio-col-name">col-10</span></div></div>
+      <div class="col-1 studio-grid-col"><div class="studio-col-stripe"><span class="studio-col-badge">11</span><span class="studio-col-name">col-11</span></div></div>
+      <div class="col-1 studio-grid-col"><div class="studio-col-stripe"><span class="studio-col-badge">12</span><span class="studio-col-name">col-12</span></div></div>
+    </div>
+  </div>
+</div>`
+    : ''
+}
 
 <!-- Bootstrap 5.3.3 JS Bundle -->
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
@@ -1055,9 +1569,25 @@ export function extractEditableBlockCode(
     };
   }
 
-  const defaultRenderedHtml = def
+  let defaultRenderedHtml = def
     ? def.renderHtml(block, theme, false).trim()
     : `<!-- Block ${block.type} -->`;
+
+  if (block.settings?.semanticTag) {
+    const targetTag = block.settings.semanticTag;
+    const openTagRegex = new RegExp(`<([a-zA-Z0-9]+)([^>]*?data-block-id="${block.id}"[^>]*)>`);
+    const openMatch = defaultRenderedHtml.match(openTagRegex);
+    if (openMatch) {
+      const originalTag = openMatch[1];
+      if (originalTag.toLowerCase() !== targetTag.toLowerCase()) {
+        defaultRenderedHtml = defaultRenderedHtml.replace(openMatch[0], `<${targetTag}${openMatch[2]}>`);
+        const closeTagRegex = new RegExp(`</${originalTag}>(\\s*)$`, 'i');
+        if (closeTagRegex.test(defaultRenderedHtml)) {
+          defaultRenderedHtml = defaultRenderedHtml.replace(closeTagRegex, `</${targetTag}>$1`);
+        }
+      }
+    }
+  }
 
   const defaultCss = `/* Custom Scoped Styles for ${block.name} (#block-${block.id}) */
 #block-${block.id} {

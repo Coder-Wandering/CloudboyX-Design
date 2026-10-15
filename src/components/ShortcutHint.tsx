@@ -98,7 +98,19 @@ export const ShortcutHint: React.FC = () => {
     },
     {
       keys: ['Alt', '↑ / ↓'],
-      description: 'Reorder selected section',
+      description: 'Reorder selected section or group',
+      category: 'edit',
+    },
+    {
+      keys: ['Shift', 'Click'],
+      macKeys: ['⇧', 'Click'],
+      description: 'Multi-select multiple sections',
+      category: 'edit',
+    },
+    {
+      keys: ['Ctrl', 'D'],
+      macKeys: ['⌘', 'D'],
+      description: 'Duplicate selected group or section',
       category: 'edit',
     },
     {
@@ -118,6 +130,12 @@ export const ShortcutHint: React.FC = () => {
       macKeys: ['⇧', '⌘', 'V'],
       description: 'Open Clipboard Manager modal',
       category: 'edit',
+    },
+    {
+      keys: ['Ctrl', 'H'],
+      macKeys: ['⌘', 'H'],
+      description: 'Revision History snapshots',
+      category: 'nav',
     },
     {
       keys: ['Delete'],

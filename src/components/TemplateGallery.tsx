@@ -41,6 +41,9 @@ import {
   CopyPlus,
   FileText,
   Printer,
+  Plus,
+  Play,
+  Pause,
 } from 'lucide-react';
 import html2canvas from 'html2canvas';
 import JSZip from 'jszip';
@@ -274,7 +277,114 @@ const RECENTLY_VIEWED_STORAGE_KEY = 'cloudboyx_recently_viewed_templates';
 const FAVORITES_STORAGE_KEY = 'cloudboyx_favorite_templates';
 const TEMPLATE_NOTES_STORAGE_KEY = 'cloudboyx_template_notes';
 const TEMPLATE_USAGE_STORAGE_KEY = 'cloudboyx_template_usage_frequency';
+const CUSTOM_TEMPLATE_TAGS_STORAGE_KEY = 'cloudboyx_custom_template_tags_v1';
+const CUSTOM_TAG_DEFINITIONS_STORAGE_KEY = 'cloudboyx_custom_tag_definitions_v1';
 const MAX_RECENTLY_VIEWED = 5;
+
+export type CustomTagColorId = 'blue' | 'cyan' | 'emerald' | 'amber' | 'rose' | 'violet';
+
+export interface CustomTemplateTag {
+  label: string;
+  colorId: CustomTagColorId;
+}
+
+export const CUSTOM_TAG_COLOR_PALETTE: Record<
+  CustomTagColorId,
+  {
+    name: string;
+    hex: string;
+    dot: string;
+    light: string;
+    dark: string;
+    active: string;
+  }
+> = {
+  blue: {
+    name: 'Electric Blue',
+    hex: '#2222FF',
+    dot: 'bg-[#2222FF]',
+    light: 'bg-blue-50 text-[#2222FF] border-blue-200 hover:bg-blue-100',
+    dark: 'bg-[#191970]/60 text-blue-200 border-[#2222FF]/50 hover:bg-[#191970]',
+    active: 'bg-[#2222FF] text-white border-[#2222FF] shadow-xs',
+  },
+  cyan: {
+    name: 'Neon Cyan',
+    hex: '#00E5D1',
+    dot: 'bg-[#00E5D1]',
+    light: 'bg-cyan-50 text-cyan-800 border-cyan-200 hover:bg-cyan-100',
+    dark: 'bg-cyan-950/60 text-[#00E5D1] border-[#00E5D1]/50 hover:bg-cyan-900/60',
+    active: 'bg-[#00E5D1] text-[#1C1C23] border-[#00E5D1] shadow-xs',
+  },
+  emerald: {
+    name: 'Emerald',
+    hex: '#10b981',
+    dot: 'bg-emerald-500',
+    light: 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100',
+    dark: 'bg-emerald-950/60 text-emerald-300 border-emerald-700/60 hover:bg-emerald-900/60',
+    active: 'bg-emerald-600 text-white border-emerald-600 shadow-xs',
+  },
+  amber: {
+    name: 'Amber Gold',
+    hex: '#f59e0b',
+    dot: 'bg-amber-500',
+    light: 'bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-100',
+    dark: 'bg-amber-950/60 text-amber-300 border-amber-700/60 hover:bg-amber-900/60',
+    active: 'bg-amber-500 text-slate-950 border-amber-500 shadow-xs',
+  },
+  rose: {
+    name: 'Rose Coral',
+    hex: '#f43f5e',
+    dot: 'bg-rose-500',
+    light: 'bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100',
+    dark: 'bg-rose-950/60 text-rose-300 border-rose-700/60 hover:bg-rose-900/60',
+    active: 'bg-rose-600 text-white border-rose-600 shadow-xs',
+  },
+  violet: {
+    name: 'Royal Violet',
+    hex: '#8b5cf6',
+    dot: 'bg-violet-500',
+    light: 'bg-violet-50 text-violet-700 border-violet-200 hover:bg-violet-100',
+    dark: 'bg-violet-950/60 text-violet-300 border-violet-700/60 hover:bg-violet-900/60',
+    active: 'bg-violet-600 text-white border-violet-600 shadow-xs',
+  },
+};
+
+export const DEFAULT_CUSTOM_TAG_DEFINITIONS: CustomTemplateTag[] = [
+  { label: 'E-commerce', colorId: 'emerald' },
+  { label: 'Portfolio', colorId: 'violet' },
+  { label: 'Landing Page', colorId: 'blue' },
+  { label: 'SaaS', colorId: 'cyan' },
+  { label: 'Agency', colorId: 'amber' },
+  { label: 'Client Ready', colorId: 'rose' },
+];
+
+function buildInitialCustomTemplateTagsMap(): Record<string, CustomTemplateTag[]> {
+  const initialMap: Record<string, CustomTemplateTag[]> = {};
+  STARTER_TEMPLATES.forEach((tmpl) => {
+    const tags: CustomTemplateTag[] = [];
+    const styleAndCat = `${tmpl.style || ''} ${tmpl.category || ''} ${tmpl.name}`.toLowerCase();
+    if (styleAndCat.includes('e-commerce') || styleAndCat.includes('shop') || styleAndCat.includes('store') || styleAndCat.includes('retail')) {
+      tags.push({ label: 'E-commerce', colorId: 'emerald' });
+    }
+    if (styleAndCat.includes('portfolio') || styleAndCat.includes('creative') || styleAndCat.includes('studio') || styleAndCat.includes('minimal')) {
+      tags.push({ label: 'Portfolio', colorId: 'violet' });
+    }
+    if (styleAndCat.includes('saas') || styleAndCat.includes('startup') || styleAndCat.includes('ai')) {
+      tags.push({ label: 'SaaS', colorId: 'cyan' });
+    }
+    if (styleAndCat.includes('agency') || styleAndCat.includes('corporate')) {
+      tags.push({ label: 'Agency', colorId: 'amber' });
+    }
+    // Every template also works great as a Landing Page if it has fewer than 2 tags
+    if (tags.length === 0) {
+      tags.push({ label: 'Landing Page', colorId: 'blue' });
+    } else if (tmpl.badge === 'High-Converting' || tmpl.badge === 'Popular') {
+      tags.push({ label: 'Landing Page', colorId: 'blue' });
+    }
+    initialMap[tmpl.id] = tags;
+  });
+  return initialMap;
+}
 
 export type TemplateSortOption = 'date_created' | 'name' | 'usage_frequency';
 
@@ -337,6 +447,12 @@ export const TemplateGallery: React.FC<TemplateGalleryProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedStyle, setSelectedStyle] = useState<string>('All');
   const [selectedFeatureTags, setSelectedFeatureTags] = useState<string[]>([]);
+  const [selectedCustomTag, setSelectedCustomTag] = useState<string>('All');
+  const [tagDropdownSearchQuery, setTagDropdownSearchQuery] = useState<string>('');
+  const [isTagFilterPopoverOpen, setIsTagFilterPopoverOpen] = useState<boolean>(false);
+  const [activeTagEditorTemplateId, setActiveTagEditorTemplateId] = useState<string | null>(null);
+  const [newCustomTagLabel, setNewCustomTagLabel] = useState<string>('');
+  const [newCustomTagColor, setNewCustomTagColor] = useState<CustomTagColorId>('emerald');
   const [modeFilter, setModeFilter] = useState<'all' | 'light' | 'dark'>('all');
   const [sortBy, setSortBy] = useState<TemplateSortOption>('usage_frequency');
   const [quickPreviewTemplate, setQuickPreviewTemplate] = useState<StarterTemplate | null>(null);
@@ -347,6 +463,14 @@ export const TemplateGallery: React.FC<TemplateGalleryProps> = ({
   const [previewMode, setPreviewMode] = useState<'iframe' | 'mock-canvas'>('iframe');
   const [showComponentOutlines, setShowComponentOutlines] = useState<boolean>(true);
   const [activePreviewBlockId, setActivePreviewBlockId] = useState<string | null>(null);
+
+  // Quick Preview Auto-Playback Mode State (cycles through component views of currently selected template)
+  const [isQuickPreviewPlaybackActive, setIsQuickPreviewPlaybackActive] = useState<boolean>(false);
+  const [selectedTemplateForPreviewId, setSelectedTemplateForPreviewId] = useState<string>(() => {
+    return STARTER_TEMPLATES[0]?.id || '';
+  });
+  const [playbackBlockIndex, setPlaybackBlockIndex] = useState<number>(0);
+
   const [applyThemeOnLoad, setApplyThemeOnLoad] = useState(true);
   const [isExportingImage, setIsExportingImage] = useState(false);
   const [exportSuccess, setExportSuccess] = useState(false);
@@ -357,6 +481,10 @@ export const TemplateGallery: React.FC<TemplateGalleryProps> = ({
   const [shareUrl, setShareUrl] = useState<string | null>(null);
   const [isShareBannerOpen, setIsShareBannerOpen] = useState(false);
   const [shareCopied, setShareCopied] = useState(false);
+  const [socialShareTemplate, setSocialShareTemplate] = useState<StarterTemplate | null>(null);
+  const [socialShareCustomMessage, setSocialShareCustomMessage] = useState<string>('');
+  const [socialSharePlatformFeedback, setSocialSharePlatformFeedback] = useState<string | null>(null);
+  const [socialShareLinkCopied, setSocialShareLinkCopied] = useState<boolean>(false);
 
   // Side-by-Side Template Comparison State
   const [compareIds, setCompareIds] = useState<string[]>([]);
@@ -421,6 +549,8 @@ export const TemplateGallery: React.FC<TemplateGalleryProps> = ({
     }
     return [];
   });
+
+  const [showExtraShelves, setShowExtraShelves] = useState(false);
 
   const toggleFavoriteTemplate = (templateId: string, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
@@ -499,6 +629,166 @@ export const TemplateGallery: React.FC<TemplateGalleryProps> = ({
       }
       return next;
     });
+  };
+
+  // Custom Color-Coded Tagging System State & Handlers (Persisted in localStorage)
+  const [customTagDefinitions, setCustomTagDefinitions] = useState<CustomTemplateTag[]>(() => {
+    try {
+      const saved = localStorage.getItem(CUSTOM_TAG_DEFINITIONS_STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
+        }
+      }
+    } catch {
+      // ignore
+    }
+    return DEFAULT_CUSTOM_TAG_DEFINITIONS;
+  });
+
+  const [templateCustomTagsMap, setTemplateCustomTagsMap] = useState<
+    Record<string, CustomTemplateTag[]>
+  >(() => {
+    const defaults = buildInitialCustomTemplateTagsMap();
+    try {
+      const saved = localStorage.getItem(CUSTOM_TEMPLATE_TAGS_STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+          return { ...defaults, ...parsed };
+        }
+      }
+    } catch {
+      // ignore
+    }
+    return defaults;
+  });
+
+  const saveCustomTagDefinitions = (nextDefs: CustomTemplateTag[]) => {
+    setCustomTagDefinitions(nextDefs);
+    try {
+      localStorage.setItem(CUSTOM_TAG_DEFINITIONS_STORAGE_KEY, JSON.stringify(nextDefs));
+    } catch {
+      // ignore
+    }
+  };
+
+  const saveTemplateCustomTagsMap = (nextMap: Record<string, CustomTemplateTag[]>) => {
+    setTemplateCustomTagsMap(nextMap);
+    try {
+      localStorage.setItem(CUSTOM_TEMPLATE_TAGS_STORAGE_KEY, JSON.stringify(nextMap));
+    } catch {
+      // ignore
+    }
+  };
+
+  const handleToggleTagOnTemplate = (
+    templateId: string,
+    tagDef: CustomTemplateTag,
+    e?: React.MouseEvent
+  ) => {
+    if (e) e.stopPropagation();
+    const currentTags = templateCustomTagsMap[templateId] || [];
+    const exists = currentTags.some(
+      (t) => t.label.toLowerCase() === tagDef.label.toLowerCase()
+    );
+    const updatedTags = exists
+      ? currentTags.filter((t) => t.label.toLowerCase() !== tagDef.label.toLowerCase())
+      : [...currentTags, tagDef];
+
+    saveTemplateCustomTagsMap({
+      ...templateCustomTagsMap,
+      [templateId]: updatedTags,
+    });
+  };
+
+  const handleRemoveTagFromTemplate = (
+    templateId: string,
+    tagLabel: string,
+    e?: React.MouseEvent
+  ) => {
+    if (e) e.stopPropagation();
+    const currentTags = templateCustomTagsMap[templateId] || [];
+    const updatedTags = currentTags.filter(
+      (t) => t.label.toLowerCase() !== tagLabel.toLowerCase()
+    );
+    saveTemplateCustomTagsMap({
+      ...templateCustomTagsMap,
+      [templateId]: updatedTags,
+    });
+  };
+
+  const handleCreateAndAssignCustomTag = (
+    templateId: string | null,
+    labelInput: string,
+    colorId: CustomTagColorId,
+    e?: React.FormEvent | React.MouseEvent
+  ) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    const cleanLabel = labelInput.trim();
+    if (!cleanLabel) return;
+
+    const newTagObj: CustomTemplateTag = {
+      label: cleanLabel,
+      colorId,
+    };
+
+    // Ensure tag is in global definitions catalog (update color if existing)
+    const existsIdx = customTagDefinitions.findIndex(
+      (d) => d.label.toLowerCase() === cleanLabel.toLowerCase()
+    );
+    let nextDefs: CustomTemplateTag[];
+    if (existsIdx >= 0) {
+      nextDefs = customTagDefinitions.map((d, i) => (i === existsIdx ? newTagObj : d));
+    } else {
+      nextDefs = [...customTagDefinitions, newTagObj];
+    }
+    saveCustomTagDefinitions(nextDefs);
+
+    // If created from a specific template card, assign it immediately to that template
+    if (templateId) {
+      const currentTags = templateCustomTagsMap[templateId] || [];
+      const alreadyAssigned = currentTags.some(
+        (t) => t.label.toLowerCase() === cleanLabel.toLowerCase()
+      );
+      const nextTemplateTags = alreadyAssigned
+        ? currentTags.map((t) =>
+            t.label.toLowerCase() === cleanLabel.toLowerCase() ? newTagObj : t
+          )
+        : [...currentTags, newTagObj];
+
+      saveTemplateCustomTagsMap({
+        ...templateCustomTagsMap,
+        [templateId]: nextTemplateTags,
+      });
+    }
+
+    setNewCustomTagLabel('');
+  };
+
+  const handleFilterByTag = (tagLabel: string, e?: React.MouseEvent) => {
+    if (e) {
+      e.stopPropagation();
+    }
+    const cleanTag = tagLabel.trim();
+    if (!cleanTag) return;
+
+    // Toggle off back to 'All' if clicking the currently active tag filter
+    if (selectedCustomTag.toLowerCase() === cleanTag.toLowerCase()) {
+      setSelectedCustomTag('All');
+      return;
+    }
+
+    // Instantly filter the entire gallery by this tag:
+    // Reset specific category/style tab to 'All' so templates from all categories with this tag are shown
+    if (selectedStyle !== 'All') {
+      setSelectedStyle('All');
+    }
+    setSelectedCustomTag(cleanTag);
   };
 
   // Track cloned template projects in the user's dashboard for experimentation
@@ -681,10 +971,17 @@ export const TemplateGallery: React.FC<TemplateGalleryProps> = ({
   const mockCanvasContainerRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
-  // Allow pressing '/' or Cmd/Ctrl+K inside TemplateGallery to focus the dedicated search bar
+  // Allow pressing '/' or Cmd/Ctrl+K inside TemplateGallery to focus the dedicated search bar, and Escape to close screenshot overlay
   useEffect(() => {
-    if (!isOpen || quickPreviewTemplate) return;
+    if (!isOpen) return;
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && quickViewImageTemplate) {
+        e.preventDefault();
+        setQuickViewImageTemplate(null);
+        return;
+      }
+      if (quickPreviewTemplate) return;
+
       const target = e.target as HTMLElement | null;
       const isInput =
         target?.tagName === 'INPUT' ||
@@ -701,24 +998,72 @@ export const TemplateGallery: React.FC<TemplateGalleryProps> = ({
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, quickPreviewTemplate]);
+  }, [isOpen, quickPreviewTemplate, quickViewImageTemplate]);
 
   const isDark = themeMode === 'dark';
+
+  const [justQuickReset, setJustQuickReset] = useState<boolean>(false);
 
   const hasActiveFiltersOrSort =
     searchQuery.trim() !== '' ||
     selectedStyle !== 'All' ||
+    selectedCustomTag !== 'All' ||
     selectedFeatureTags.length > 0 ||
     modeFilter !== 'all' ||
     sortBy !== 'usage_frequency';
 
+  const activeFiltersCount = useMemo(() => {
+    let count = 0;
+    if (searchQuery.trim()) count++;
+    if (selectedStyle !== 'All') count++;
+    if (selectedCustomTag !== 'All') count++;
+    if (selectedFeatureTags.length > 0) count += selectedFeatureTags.length;
+    if (modeFilter !== 'all') count++;
+    if (sortBy !== 'usage_frequency') count++;
+    return count;
+  }, [searchQuery, selectedStyle, selectedCustomTag, selectedFeatureTags, modeFilter, sortBy]);
+
   const handleClearAllFiltersAndSort = () => {
     setSearchQuery('');
     setSelectedStyle('All');
+    setSelectedCustomTag('All');
+    setTagDropdownSearchQuery('');
     setSelectedFeatureTags([]);
     setModeFilter('all');
     setSortBy('usage_frequency');
+    setIsTagFilterPopoverOpen(false);
+    if (searchInputRef.current) {
+      searchInputRef.current.value = '';
+    }
+    setJustQuickReset(true);
+    setTimeout(() => {
+      setJustQuickReset(false);
+    }, 1600);
   };
+
+  // Compute counts for each custom tag definition across all templates
+  const customTagCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    customTagDefinitions.forEach((def) => {
+      const targetLower = def.label.toLowerCase();
+      counts[def.label] = STARTER_TEMPLATES.filter((tmpl) => {
+        const assigned = templateCustomTagsMap[tmpl.id] || [];
+        return (
+          assigned.some((t) => t.label.toLowerCase() === targetLower) ||
+          tmpl.category.toLowerCase() === targetLower ||
+          (tmpl.style || '').toLowerCase() === targetLower ||
+          tmpl.previewTags.some((pt) => pt.toLowerCase() === targetLower)
+        );
+      }).length;
+    });
+    return counts;
+  }, [customTagDefinitions, templateCustomTagsMap]);
+
+  const filteredCustomTagDefinitionsForDropdown = useMemo(() => {
+    const q = tagDropdownSearchQuery.trim().toLowerCase();
+    if (!q) return customTagDefinitions;
+    return customTagDefinitions.filter((def) => def.label.toLowerCase().includes(q));
+  }, [customTagDefinitions, tagDropdownSearchQuery]);
 
   const styleCounts = useMemo(() => {
     const counts: Record<string, number> = {
@@ -774,10 +1119,25 @@ export const TemplateGallery: React.FC<TemplateGalleryProps> = ({
       }
 
       const tmplFeatureBadges = getTemplateFeatureBadges(tmpl);
+      const assignedCustomTags = templateCustomTagsMap[tmpl.id] || [];
+
+      if (selectedCustomTag !== 'All') {
+        const targetTagLower = selectedCustomTag.toLowerCase();
+        const matchesCustomTag =
+          assignedCustomTags.some((ct) => ct.label.toLowerCase() === targetTagLower) ||
+          tmplFeatureBadges.some((fb) => fb.toLowerCase() === targetTagLower) ||
+          tmpl.previewTags.some((pt) => pt.toLowerCase() === targetTagLower) ||
+          tmpl.category.toLowerCase().includes(targetTagLower) ||
+          (tmpl.style || '').toLowerCase().includes(targetTagLower);
+
+        if (!matchesCustomTag) return false;
+      }
+
       if (selectedFeatureTags.length > 0) {
         const hasAllSelectedTags = selectedFeatureTags.every(
           (selTag) =>
             tmplFeatureBadges.includes(selTag) ||
+            assignedCustomTags.some((ct) => ct.label.toLowerCase() === selTag.toLowerCase()) ||
             tmpl.previewTags.some((pt) => pt.toLowerCase() === selTag.toLowerCase())
         );
         if (!hasAllSelectedTags) return false;
@@ -794,6 +1154,7 @@ export const TemplateGallery: React.FC<TemplateGalleryProps> = ({
       const searchableTags = [
         ...tmpl.previewTags.map((tag) => tag.toLowerCase()),
         ...tmplFeatureBadges.map((fb) => fb.toLowerCase()),
+        ...assignedCustomTags.map((ct) => ct.label.toLowerCase()),
       ];
       const searchableDesc = tmpl.description.toLowerCase();
       const searchableFont = (tmpl.theme?.fontFamily || '').toLowerCase();
@@ -839,12 +1200,14 @@ export const TemplateGallery: React.FC<TemplateGalleryProps> = ({
     });
   }, [
     selectedStyle,
+    selectedCustomTag,
     selectedFeatureTags,
     modeFilter,
     searchQuery,
     sortBy,
     favoriteIds,
     templateUsageCounts,
+    templateCustomTagsMap,
   ]);
 
   // Generate full-screen scrollable HTML document with optional component structure overlays
@@ -1118,6 +1481,65 @@ export const TemplateGallery: React.FC<TemplateGalleryProps> = ({
     }
   };
 
+  // Open the Social Media Sharing Dialog for a selected template card
+  const handleOpenSocialShareDialog = (tmpl: StarterTemplate, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    recordRecentlyViewed(tmpl.id);
+    const generatedUrl = generateShareableTemplateUrl(tmpl);
+    setShareUrl(generatedUrl);
+    setSocialShareTemplate(tmpl);
+    setSocialShareCustomMessage(
+      `Check out the "${tmpl.name}" (${tmpl.style || tmpl.category}) responsive Bootstrap 5 design concept! (${tmpl.blocks.length} sections)`
+    );
+    setSocialSharePlatformFeedback(null);
+    setSocialShareLinkCopied(false);
+  };
+
+  const handleCopySocialDialogUrl = async (urlToCopy: string) => {
+    try {
+      await navigator.clipboard.writeText(urlToCopy);
+      setSocialShareLinkCopied(true);
+      setTimeout(() => {
+        setSocialShareLinkCopied(false);
+      }, 2500);
+    } catch {
+      // ignore
+    }
+  };
+
+  const handleSocialPlatformClick = async (
+    platformName: string,
+    shareHref: string,
+    postTextWithUrl: string
+  ) => {
+    try {
+      await navigator.clipboard.writeText(postTextWithUrl);
+    } catch {
+      // ignore
+    }
+    try {
+      localStorage.setItem(
+        'cloudboyx_last_social_shared_template',
+        JSON.stringify({
+          templateId: socialShareTemplate?.id,
+          templateName: socialShareTemplate?.name,
+          platform: platformName,
+          shareHref,
+          message: postTextWithUrl,
+          sharedAt: Date.now(),
+        })
+      );
+    } catch {
+      // ignore
+    }
+    setSocialSharePlatformFeedback(
+      `Ready to share on ${platformName}! Post & link copied to clipboard.`
+    );
+    setTimeout(() => {
+      setSocialSharePlatformFeedback(null);
+    }, 3500);
+  };
+
   // Scroll to specific block inside either full-screen iframe or mock canvas
   const handleScrollToPreviewBlock = (blockId: string) => {
     setActivePreviewBlockId(blockId);
@@ -1142,8 +1564,6 @@ export const TemplateGallery: React.FC<TemplateGalleryProps> = ({
       }
     }
   };
-
-  if (!isOpen) return null;
 
   const handleApplyTemplateImmediate = (tmpl: StarterTemplate, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
@@ -1993,10 +2413,73 @@ document.addEventListener('DOMContentLoaded', function () {
     const nextTmpl = filteredTemplates[nextIdx];
     if (nextTmpl) {
       recordRecentlyViewed(nextTmpl.id);
+      setSelectedTemplateForPreviewId(nextTmpl.id);
       setQuickPreviewTemplate(nextTmpl);
       setActivePreviewBlockId(nextTmpl.blocks[0]?.id || null);
     }
   };
+
+  const currentSelectedTemplate = useMemo(() => {
+    if (quickPreviewTemplate) return quickPreviewTemplate;
+    const found = STARTER_TEMPLATES.find((t) => t.id === selectedTemplateForPreviewId);
+    if (found) return found;
+    return filteredTemplates[0] || STARTER_TEMPLATES[0];
+  }, [quickPreviewTemplate, selectedTemplateForPreviewId, filteredTemplates]);
+
+  // Automatic Preview Playback Loop: cycles through component views of currently selected template
+  useEffect(() => {
+    if (!isOpen || !isQuickPreviewPlaybackActive) return;
+
+    const currentBlocks = currentSelectedTemplate?.blocks || [];
+    if (currentBlocks.length === 0) return;
+
+    const interval = setInterval(() => {
+      setPlaybackBlockIndex((prevIdx) => {
+        const nextIdx = (prevIdx + 1) % currentBlocks.length;
+        const nextBlock = currentBlocks[nextIdx];
+        if (nextBlock) {
+          setActivePreviewBlockId(nextBlock.id);
+          // If the preview iframe is rendered, scroll smoothly to this component view
+          if (previewIframeRef.current?.contentWindow) {
+            try {
+              previewIframeRef.current.contentWindow.postMessage(
+                {
+                  type: 'PREVIEW_SCROLL_TO_BLOCK',
+                  blockId: nextBlock.id,
+                },
+                '*'
+              );
+            } catch {
+              // ignore
+            }
+          }
+        }
+        return nextIdx;
+      });
+    }, 2800);
+
+    return () => clearInterval(interval);
+  }, [isOpen, isQuickPreviewPlaybackActive, currentSelectedTemplate]);
+
+  const handleToggleQuickPreviewPlayback = (e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    setIsQuickPreviewPlaybackActive((prev) => {
+      const nextState = !prev;
+      if (nextState) {
+        const target = currentSelectedTemplate;
+        recordRecentlyViewed(target.id);
+        setSelectedTemplateForPreviewId(target.id);
+        setQuickPreviewTemplate(target);
+        const firstBlockId = target.blocks[0]?.id || null;
+        setActivePreviewBlockId(firstBlockId);
+        setPlaybackBlockIndex(0);
+      }
+      return nextState;
+    });
+  };
+
+  // Safe early exit AFTER all React hooks have been called unconditionally
+  if (!isOpen) return null;
 
   const galleryBody = (
     <div
@@ -2011,45 +2494,143 @@ document.addEventListener('DOMContentLoaded', function () {
       }`}
     >
       {/* Top Header & Controls */}
-      <div
-        className={`p-4 sm:p-5 border-b flex flex-col gap-3.5 shrink-0 ${
+      <header
+        className={`template-gallery-modal-header px-4 py-3 sm:px-5 sm:py-3.5 border-b flex flex-col gap-2.5 shrink-0 ${
           isDark ? 'bg-slate-900/90 border-slate-800' : 'bg-slate-50/90 border-slate-200'
         }`}
       >
         <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center shadow-sm shrink-0">
-              <LayoutGrid className="w-5 h-5" />
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-blue-600 text-white flex items-center justify-center shadow-xs shrink-0">
+              <LayoutGrid className="w-4 h-4" />
             </div>
-            <div>
-              <div className="flex items-center gap-2.5 flex-wrap">
-                <h2 className="text-base sm:text-lg font-bold tracking-tight">
-                  Bootstrap 5 Template Gallery
-                </h2>
-                <span className="text-xs font-mono font-semibold text-blue-600 dark:text-blue-400">
-                  {STARTER_TEMPLATES.length} Ready-to-Use Templates
-                </span>
-              </div>
-              <p className={`text-xs mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                Search, filter by style (Agency, SaaS, Portfolio, E-Commerce), open a full-screen Quick Preview to scroll through the page, or click to apply immediately.
-              </p>
+            <div className="flex items-center gap-2.5 flex-wrap">
+              <h2 className="text-sm sm:text-base font-bold tracking-tight">
+                Template Gallery
+              </h2>
+              <span className="text-[11px] font-mono font-semibold text-blue-600 dark:text-blue-400">
+                {filteredTemplates.length} / {STARTER_TEMPLATES.length} templates
+              </span>
             </div>
           </div>
 
-          {!isEmbedded && (
+          <div className="flex items-center gap-2">
+            {/* Quick Preview Auto-Playback Mode Toggle */}
             <button
               type="button"
-              onClick={onClose}
-              className={`p-2 rounded-xl transition cursor-pointer ${
-                isDark
-                  ? 'text-slate-400 hover:text-white hover:bg-slate-800'
-                  : 'text-slate-500 hover:text-slate-900 hover:bg-slate-200/70'
+              id="template-gallery-quick-preview-toggle"
+              onClick={handleToggleQuickPreviewPlayback}
+              aria-pressed={isQuickPreviewPlaybackActive}
+              className={`template-gallery-quick-preview-toggle px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition flex items-center gap-1.5 cursor-pointer select-none ${
+                isQuickPreviewPlaybackActive
+                  ? isDark
+                    ? 'bg-emerald-950/80 text-emerald-300 border-emerald-600/80 shadow-2xs'
+                    : 'bg-emerald-50 text-emerald-700 border-emerald-300 shadow-2xs'
+                  : isDark
+                  ? 'bg-slate-950 border-slate-800 text-slate-300 hover:text-white hover:border-slate-700'
+                  : 'bg-white border-slate-200 text-slate-700 hover:text-slate-900 hover:border-slate-300'
               }`}
-              title="Close Template Gallery (Esc)"
+              title={
+                isQuickPreviewPlaybackActive
+                  ? `Disable Quick Preview automatic playback mode (currently cycling "${currentSelectedTemplate.name}")`
+                  : `Enable Quick Preview automatic playback mode (cycles through component views of "${currentSelectedTemplate.name}")`
+              }
             >
-              <X className="w-5 h-5" />
+              {isQuickPreviewPlaybackActive ? (
+                <>
+                  <Pause className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                  <span className="font-bold">Quick Preview</span>
+                  <span className="text-[10px] font-mono px-1.5 py-0.2 rounded-full bg-emerald-600/20 text-emerald-400 border border-emerald-500/30 font-bold hidden sm:inline">
+                    Auto-Play ({playbackBlockIndex + 1}/{currentSelectedTemplate.blocks.length})
+                  </span>
+                </>
+              ) : (
+                <>
+                  <Play className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+                  <span>Quick Preview</span>
+                  <span className="text-[10px] font-mono opacity-70 hidden sm:inline">
+                    Auto-Play
+                  </span>
+                </>
+              )}
             </button>
-          )}
+
+            {/* Quick Reset Button in Header */}
+            <button
+              type="button"
+              id="template-gallery-quick-reset-btn"
+              data-testid="template-gallery-quick-reset-btn"
+              data-action="quick-reset"
+              onClick={handleClearAllFiltersAndSort}
+              aria-label="Quick Reset all filters, search queries, and sorting preferences"
+              className={`template-gallery-quick-reset-btn quick-reset-btn px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition flex items-center gap-1.5 cursor-pointer select-none ${
+                justQuickReset
+                  ? 'bg-emerald-600 text-white border-emerald-500 shadow-xs'
+                  : hasActiveFiltersOrSort
+                  ? isDark
+                    ? 'bg-rose-950/70 border-rose-500/60 text-rose-300 hover:bg-rose-900/80 hover:text-white shadow-2xs'
+                    : 'bg-rose-50 border-rose-200 text-rose-600 hover:bg-rose-100 hover:text-rose-700 shadow-2xs'
+                  : isDark
+                  ? 'bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-200 hover:border-slate-700'
+                  : 'bg-white border-slate-200 text-slate-600 hover:text-slate-900 hover:border-slate-300'
+              }`}
+              title="Quick Reset: Clear all active filters, search queries, and sorting preferences at once"
+            >
+              <RotateCcw
+                className={`w-3.5 h-3.5 shrink-0 transition-transform duration-300 ${
+                  justQuickReset ? '-rotate-180 text-white' : ''
+                }`}
+              />
+              <span>Quick Reset</span>
+              {justQuickReset ? (
+                <span className="text-[10px] font-mono px-1.5 py-0.2 rounded-full bg-emerald-500/30 text-emerald-100 border border-emerald-400/40 font-bold hidden sm:inline">
+                  Reset!
+                </span>
+              ) : hasActiveFiltersOrSort ? (
+                <span className="text-[10px] font-mono px-1.5 py-0.2 rounded-full bg-rose-600/20 text-rose-400 border border-rose-500/30 font-bold hidden sm:inline">
+                  {activeFiltersCount}
+                </span>
+              ) : null}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setShowExtraShelves((prev) => !prev)}
+              className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition flex items-center gap-1.5 cursor-pointer ${
+                showExtraShelves || selectedFeatureTags.length > 0
+                  ? isDark
+                    ? 'bg-[#191970] text-[#00E5D1] border-[#00E5D1]/50'
+                    : 'bg-blue-50 text-[#2222FF] border-blue-200'
+                  : isDark
+                  ? 'bg-slate-950 border-slate-800 text-slate-300 hover:text-white'
+                  : 'bg-white border-slate-200 text-slate-600 hover:text-slate-900'
+              }`}
+              title="Toggle Feature Tag Cloud & Recently Viewed History"
+            >
+              <Clock className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">History & Feature Tags</span>
+              {(recentlyViewedTemplates.length > 0 || selectedFeatureTags.length > 0) && (
+                <span className="text-[10px] font-mono opacity-80">
+                  ({recentlyViewedTemplates.length + selectedFeatureTags.length})
+                </span>
+              )}
+            </button>
+
+            {!isEmbedded && (
+              <button
+                type="button"
+                onClick={onClose}
+                className={`p-1.5 rounded-lg transition cursor-pointer ${
+                  isDark
+                    ? 'text-slate-400 hover:text-white hover:bg-slate-800'
+                    : 'text-slate-500 hover:text-slate-900 hover:bg-slate-200/70'
+                }`}
+                title="Close Template Gallery (Esc)"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Dedicated Real-Time Search Bar + Sort & Mode Controls */}
@@ -2122,6 +2703,232 @@ document.addEventListener('DOMContentLoaded', function () {
             </div>
 
             <div className="flex items-center gap-2 flex-wrap">
+            {/* Filter by Custom Tag Dropdown (Supports Searching & Selecting Color-Coded Tags) */}
+            <div
+              className={`template-tag-filter-wrapper relative flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs ${
+                isDark
+                  ? 'bg-slate-950 border-slate-800 text-slate-200'
+                  : 'bg-white border-slate-200 text-slate-700'
+              }`}
+            >
+              <Tag className="w-3.5 h-3.5 text-[#00E5D1] shrink-0" />
+              <label htmlFor="template-gallery-tag-filter-select" className="text-slate-400 font-medium">
+                Tag Filter:
+              </label>
+              <select
+                id="template-gallery-tag-filter-select"
+                value={selectedCustomTag}
+                onChange={(e) => setSelectedCustomTag(e.target.value)}
+                aria-label="Filter templates by custom color-coded tag"
+                className={`template-tag-filter-dropdown font-semibold bg-transparent focus:outline-hidden cursor-pointer ${
+                  isDark ? 'text-slate-100' : 'text-slate-800'
+                }`}
+              >
+                <option value="All" className={isDark ? 'bg-slate-900 text-slate-100' : 'bg-white text-slate-900'}>
+                  All Tags ({STARTER_TEMPLATES.length})
+                </option>
+                {customTagDefinitions.map((tagDef) => {
+                  const count = customTagCounts[tagDef.label] ?? 0;
+                  return (
+                    <option
+                      key={tagDef.label}
+                      value={tagDef.label}
+                      className={isDark ? 'bg-slate-900 text-slate-100' : 'bg-white text-slate-900'}
+                    >
+                      {tagDef.label} ({count})
+                    </option>
+                  );
+                })}
+                {selectedCustomTag !== 'All' &&
+                  !customTagDefinitions.some(
+                    (def) => def.label.toLowerCase() === selectedCustomTag.toLowerCase()
+                  ) && (
+                    <option
+                      value={selectedCustomTag}
+                      className={isDark ? 'bg-slate-900 text-slate-100' : 'bg-white text-slate-900'}
+                    >
+                      {selectedCustomTag} ({filteredTemplates.length})
+                    </option>
+                  )}
+              </select>
+
+              {/* Interactive Tag Search & Custom Tag Manager Popover Toggle */}
+              <button
+                type="button"
+                id="template-gallery-tag-search-trigger"
+                onClick={() => setIsTagFilterPopoverOpen((prev) => !prev)}
+                aria-label="Search tags or create custom color-coded label"
+                aria-expanded={isTagFilterPopoverOpen}
+                className={`ml-1 px-1.5 py-0.5 rounded-md text-[10px] font-semibold border transition cursor-pointer flex items-center gap-1 ${
+                  isTagFilterPopoverOpen || selectedCustomTag !== 'All'
+                    ? isDark
+                      ? 'bg-[#191970] text-[#00E5D1] border-[#00E5D1]/50'
+                      : 'bg-blue-50 text-[#2222FF] border-blue-200'
+                    : isDark
+                    ? 'bg-slate-900 text-slate-400 border-slate-800 hover:text-white'
+                    : 'bg-slate-50 text-slate-600 border-slate-200 hover:text-slate-900'
+                }`}
+                title="Search custom color-coded tags or create a new tag"
+              >
+                <Search className="w-2.5 h-2.5" />
+                <span>Search Tags</span>
+              </button>
+
+              {isTagFilterPopoverOpen && (
+                <div
+                  id="template-gallery-tag-search-popover"
+                  onClick={(e) => e.stopPropagation()}
+                  className={`template-tag-filter-popover absolute top-full left-0 mt-2 w-72 rounded-2xl border p-3 shadow-2xl z-40 ${
+                    isDark
+                      ? 'bg-slate-900 border-slate-700 text-slate-100'
+                      : 'bg-white border-slate-200 text-slate-800'
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-2 mb-2">
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-[#00E5D1]">
+                      Search & Filter by Tag
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setIsTagFilterPopoverOpen(false)}
+                      className="p-0.5 rounded text-slate-400 hover:text-white cursor-pointer"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+
+                  {/* Search Input inside Filter Dropdown */}
+                  <div className="relative mb-2.5">
+                    <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    <input
+                      type="search"
+                      value={tagDropdownSearchQuery}
+                      onChange={(e) => setTagDropdownSearchQuery(e.target.value)}
+                      placeholder="Search tags (e.g., E-commerce, Portfolio)..."
+                      aria-label="Search custom tags in filter dropdown"
+                      className={`template-tag-dropdown-search-input w-full pl-8 pr-2.5 py-1.5 rounded-lg text-xs border focus:outline-hidden focus:border-[#2222FF] ${
+                        isDark
+                          ? 'bg-slate-950 border-slate-800 text-slate-100 placeholder:text-slate-500'
+                          : 'bg-slate-50 border-slate-200 text-slate-800 placeholder:text-slate-400'
+                      }`}
+                    />
+                  </div>
+
+                  {/* Color-Coded Tag List */}
+                  <div className="max-h-44 overflow-y-auto space-y-1 pr-0.5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedCustomTag('All');
+                        setIsTagFilterPopoverOpen(false);
+                      }}
+                      className={`w-full px-2.5 py-1.5 rounded-lg text-xs font-semibold flex items-center justify-between transition cursor-pointer ${
+                        selectedCustomTag === 'All'
+                          ? 'bg-[#2222FF] text-white'
+                          : isDark
+                          ? 'hover:bg-slate-800 text-slate-300'
+                          : 'hover:bg-slate-100 text-slate-700'
+                      }`}
+                    >
+                      <span>All Templates</span>
+                      <span className="font-mono text-[10px] opacity-80">{STARTER_TEMPLATES.length}</span>
+                    </button>
+
+                    {filteredCustomTagDefinitionsForDropdown.map((tagDef) => {
+                      const palette = CUSTOM_TAG_COLOR_PALETTE[tagDef.colorId] || CUSTOM_TAG_COLOR_PALETTE.blue;
+                      const isSelected = selectedCustomTag.toLowerCase() === tagDef.label.toLowerCase();
+                      const count = customTagCounts[tagDef.label] ?? 0;
+
+                      return (
+                        <button
+                          key={tagDef.label}
+                          type="button"
+                          onClick={() => {
+                            setSelectedCustomTag(isSelected ? 'All' : tagDef.label);
+                            setIsTagFilterPopoverOpen(false);
+                          }}
+                          className={`w-full px-2.5 py-1.5 rounded-lg text-xs font-semibold flex items-center justify-between border transition cursor-pointer ${
+                            isSelected
+                              ? palette.active
+                              : isDark
+                              ? palette.dark
+                              : palette.light
+                          }`}
+                        >
+                          <span className="flex items-center gap-2 truncate">
+                            <span
+                              className="w-2.5 h-2.5 rounded-full shrink-0"
+                              style={{ backgroundColor: palette.hex }}
+                            />
+                            <span className="truncate">{tagDef.label}</span>
+                          </span>
+                          <span className="font-mono text-[10px] opacity-80">{count}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* Quick Create New Custom Color-Coded Tag */}
+                  <form
+                    onSubmit={(e) =>
+                      handleCreateAndAssignCustomTag(
+                        null,
+                        newCustomTagLabel,
+                        newCustomTagColor,
+                        e
+                      )
+                    }
+                    className={`mt-2.5 pt-2.5 border-t space-y-2 ${
+                      isDark ? 'border-slate-800' : 'border-slate-200'
+                    }`}
+                  >
+                    <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                      Create New Color-Coded Label
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        type="text"
+                        value={newCustomTagLabel}
+                        onChange={(e) => setNewCustomTagLabel(e.target.value)}
+                        placeholder="New label (e.g., Landing Page)"
+                        aria-label="New custom tag label name"
+                        className={`flex-1 px-2 py-1 rounded-lg text-xs border focus:outline-hidden focus:border-[#2222FF] ${
+                          isDark
+                            ? 'bg-slate-950 border-slate-800 text-slate-100 placeholder:text-slate-500'
+                            : 'bg-slate-50 border-slate-200 text-slate-800 placeholder:text-slate-400'
+                        }`}
+                      />
+                      <button
+                        type="submit"
+                        className="px-2.5 py-1 rounded-lg bg-[#2222FF] hover:bg-blue-500 text-white text-xs font-bold cursor-pointer shrink-0"
+                      >
+                        Add
+                      </button>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      {(Object.keys(CUSTOM_TAG_COLOR_PALETTE) as CustomTagColorId[]).map((cId) => {
+                        const sw = CUSTOM_TAG_COLOR_PALETTE[cId];
+                        const isPicked = newCustomTagColor === cId;
+                        return (
+                          <button
+                            key={cId}
+                            type="button"
+                            onClick={() => setNewCustomTagColor(cId)}
+                            aria-label={`Select ${sw.name} tag color`}
+                            className={`w-4 h-4 rounded-full transition cursor-pointer ${
+                              isPicked ? 'ring-2 ring-offset-1 ring-[#00E5D1] scale-110' : 'opacity-75 hover:opacity-100'
+                            }`}
+                            style={{ backgroundColor: sw.hex }}
+                            title={sw.name}
+                          />
+                        );
+                      })}
+                    </div>
+                  </form>
+                </div>
+              )}
+            </div>
+
             {/* Sorting Dropdown (Date Created / Name / Usage Frequency) */}
             <div
               className={`template-sort-dropdown-wrapper flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs ${
@@ -2223,15 +3030,17 @@ document.addEventListener('DOMContentLoaded', function () {
               <span>Sync palette & typography</span>
             </label>
 
-            {/* Clear All Button (Resets Filters, Search Terms, and Sort Order) */}
+            {/* Quick Reset / Clear All Button (Resets Filters, Search Terms, and Sort Order) */}
             <button
               type="button"
               id="template-gallery-clear-all-btn"
               onClick={handleClearAllFiltersAndSort}
-              aria-label="Clear all applied filters, search terms, and sort orders"
-              title="Reset search terms, style/mode/tag filters, and sort order to default"
-              className={`template-gallery-clear-all-btn flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-semibold transition cursor-pointer shrink-0 ${
-                hasActiveFiltersOrSort
+              aria-label="Quick Reset all active filters, search queries, and sorting preferences"
+              title="Quick Reset: Clear all active filters, search queries, and sorting preferences at once"
+              className={`template-gallery-clear-all-btn template-gallery-quick-reset-btn quick-reset-btn flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-semibold transition cursor-pointer shrink-0 ${
+                justQuickReset
+                  ? 'bg-emerald-600 text-white border-emerald-500 shadow-xs'
+                  : hasActiveFiltersOrSort
                   ? isDark
                     ? 'bg-rose-950/70 border-rose-500/60 text-rose-300 hover:bg-rose-900/80 hover:text-white shadow-2xs'
                     : 'bg-rose-50 border-rose-200 text-rose-600 hover:bg-rose-100 hover:text-rose-700 shadow-2xs'
@@ -2240,8 +3049,21 @@ document.addEventListener('DOMContentLoaded', function () {
                   : 'bg-white border-slate-200 text-slate-500 hover:text-slate-800 hover:bg-slate-50'
               }`}
             >
-              <RotateCcw className="w-3.5 h-3.5 shrink-0" />
-              <span>Clear All</span>
+              <RotateCcw
+                className={`w-3.5 h-3.5 shrink-0 transition-transform duration-300 ${
+                  justQuickReset ? '-rotate-180 text-white' : ''
+                }`}
+              />
+              <span>Quick Reset</span>
+              {justQuickReset ? (
+                <span className="text-[10px] font-mono px-1.5 py-0.2 rounded-full bg-emerald-500/30 text-emerald-100 border border-emerald-400/40 font-bold hidden sm:inline">
+                  Reset!
+                </span>
+              ) : hasActiveFiltersOrSort ? (
+                <span className="text-[10px] font-mono opacity-80">
+                  ({activeFiltersCount})
+                </span>
+              ) : null}
             </button>
           </div>
           </div>
@@ -2309,7 +3131,8 @@ document.addEventListener('DOMContentLoaded', function () {
           })}
         </div>
 
-        {/* Horizontal Feature Tag Cloud Filter */}
+        {/* Horizontal Feature Tag Cloud Filter (Collapsible) */}
+        {(showExtraShelves || selectedFeatureTags.length > 0) && (
         <div
           id="template-gallery-tag-cloud"
           className={`flex items-center gap-1.5 overflow-x-auto no-scrollbar pt-2 border-t ${
@@ -2361,9 +3184,11 @@ document.addEventListener('DOMContentLoaded', function () {
             </button>
           )}
         </div>
-      </div>
+        )}
+      </header>
 
-      {/* Results & Active Comparison Bar */}
+      {/* Active Comparison Bar (Only shown when comparing templates) */}
+      {comparedTemplates.length > 0 && (
       <div
         className={`px-5 py-2 border-b text-xs flex flex-wrap items-center justify-between gap-2 shrink-0 ${
           isDark
@@ -2371,63 +3196,44 @@ document.addEventListener('DOMContentLoaded', function () {
             : 'bg-slate-50/50 border-slate-200/70 text-slate-500'
         }`}
       >
-        <div className="flex items-center gap-3 flex-wrap">
-          <span>
-            Showing <strong className={isDark ? 'text-white' : 'text-slate-900'}>{filteredTemplates.length}</strong> of{' '}
-            {STARTER_TEMPLATES.length} templates
-            {selectedStyle !== 'All' ? ` in ${selectedStyle}` : ''}
-            {selectedFeatureTags.length > 0 ? ` · Tagged: ${selectedFeatureTags.join(', ')}` : ''}
+        <div
+          id="template-gallery-compare-bar"
+          className={`inline-flex items-center gap-2 px-2.5 py-1 rounded-xl border ${
+            isDark
+              ? 'bg-[#191970]/60 border-[#00E5D1]/50 text-white'
+              : 'bg-blue-50 border-blue-200 text-slate-800'
+          }`}
+        >
+          <Columns2 className="w-3.5 h-3.5 text-[#00E5D1] shrink-0" />
+          <span className="font-semibold">
+            {comparedTemplates.length === 1
+              ? '1 template selected — check 1 more to compare'
+              : `${comparedTemplates.length} templates selected for comparison`}
           </span>
-
-          {comparedTemplates.length > 0 && (
-            <div
-              id="template-gallery-compare-bar"
-              className={`inline-flex items-center gap-2 px-2.5 py-1 rounded-xl border ${
-                isDark
-                  ? 'bg-[#191970]/60 border-[#00E5D1]/50 text-white'
-                  : 'bg-blue-50 border-blue-200 text-slate-800'
-              }`}
+          {comparedTemplates.length >= 2 && (
+            <button
+              type="button"
+              onClick={() => setIsCompareModalOpen(true)}
+              className="px-2.5 py-0.5 rounded-lg bg-[#2222FF] hover:bg-[#00E5D1] hover:text-[#1C1C23] text-white font-bold transition cursor-pointer"
             >
-              <Columns2 className="w-3.5 h-3.5 text-[#00E5D1] shrink-0" />
-              <span className="font-semibold">
-                {comparedTemplates.length === 1
-                  ? '1 template selected — check 1 more to compare'
-                  : `${comparedTemplates.length} templates selected for comparison`}
-              </span>
-              {comparedTemplates.length >= 2 && (
-                <button
-                  type="button"
-                  onClick={() => setIsCompareModalOpen(true)}
-                  className="px-2.5 py-0.5 rounded-lg bg-[#2222FF] hover:bg-[#00E5D1] hover:text-[#1C1C23] text-white font-bold transition cursor-pointer"
-                >
-                  Compare Side-by-Side
-                </button>
-              )}
-              <button
-                type="button"
-                onClick={handleClearCompare}
-                className="text-[11px] text-rose-400 hover:text-rose-300 font-semibold cursor-pointer pl-1"
-              >
-                Clear
-              </button>
-            </div>
+              Compare Side-by-Side
+            </button>
           )}
-        </div>
-        {hasActiveFiltersOrSort && (
           <button
             type="button"
-            onClick={handleClearAllFiltersAndSort}
-            className="inline-flex items-center gap-1 text-blue-500 hover:text-blue-400 font-semibold cursor-pointer"
+            onClick={handleClearCompare}
+            className="text-[11px] text-rose-400 hover:text-rose-300 font-semibold cursor-pointer pl-1"
           >
-            <RotateCcw className="w-3 h-3" />
-            <span>Clear All</span>
+            Clear
           </button>
-        )}
+        </div>
       </div>
+      )}
 
       {/* Main Template Grid */}
-      <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6">
-        {/* Recently Viewed Section (Last 5 Templates Opened) */}
+      <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-5">
+        {/* Recently Viewed Section (Shown when History & Feature Tags is toggled on) */}
+        {showExtraShelves && (
         <section
           id="template-gallery-recently-viewed"
           aria-label="Recently Viewed Templates"
@@ -2585,15 +3391,18 @@ document.addEventListener('DOMContentLoaded', function () {
                       <div className="flex items-center gap-1.5">
                         <button
                           type="button"
-                          onClick={(e) => handleOpenQuickPreview(recentTmpl, e)}
-                          className={`flex-1 py-1 px-2 rounded-lg text-[10px] font-semibold border transition flex items-center justify-center gap-1 cursor-pointer ${
+                          onClick={(e) => handleOpenQuickViewImage(recentTmpl, e)}
+                          data-action="quick-preview"
+                          data-testid="recently-viewed-quick-preview-btn"
+                          className={`template-quick-preview-btn flex-1 py-1 px-2 rounded-lg text-[10px] font-semibold border transition flex items-center justify-center gap-1 cursor-pointer ${
                             isDark
                               ? 'bg-slate-900 border-slate-700 text-slate-200 hover:border-[#00E5D1] hover:text-white'
                               : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
                           }`}
+                          title={`Quick Preview larger screenshot for "${recentTmpl.name}"`}
                         >
                           <Eye className="w-3 h-3 text-blue-500 shrink-0" />
-                          <span>Preview</span>
+                          <span>Quick Preview</span>
                         </button>
                         <button
                           type="button"
@@ -2612,6 +3421,7 @@ document.addEventListener('DOMContentLoaded', function () {
             </div>
           )}
         </section>
+        )}
 
         {/* Cloned Dashboard Projects Section (Experimentation Sandbox) */}
         {clonedProjects.length > 0 && (
@@ -2747,6 +3557,49 @@ document.addEventListener('DOMContentLoaded', function () {
             </div>
           </section>
         )}
+
+        {/* Active Tag Filter Indicator Bar (When filtered by clicking a tag or selecting from dropdown) */}
+        {selectedCustomTag !== 'All' && (
+          <div
+            id="template-gallery-active-tag-banner"
+            className={`flex items-center justify-between gap-3 px-3.5 py-2 rounded-xl border text-xs transition ${
+              isDark
+                ? 'bg-[#191970]/50 border-[#00E5D1]/50 text-slate-200'
+                : 'bg-blue-50/80 border-blue-200 text-slate-800'
+            }`}
+          >
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="font-semibold text-slate-400 flex items-center gap-1.5">
+                <Tag className="w-3.5 h-3.5 text-[#00E5D1]" />
+                <span>Filtered by Tag:</span>
+              </span>
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full font-bold text-xs bg-[#2222FF] text-white shadow-xs">
+                <span>{selectedCustomTag}</span>
+                <span className="text-[10px] font-mono opacity-80 font-normal">
+                  ({filteredTemplates.length} {filteredTemplates.length === 1 ? 'template' : 'templates'})
+                </span>
+              </span>
+              <span className="text-[11px] text-slate-400 hidden md:inline">
+                Click any tag on a template card or click Clear to restore all templates
+              </span>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setSelectedCustomTag('All')}
+              className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold transition cursor-pointer ${
+                isDark
+                  ? 'bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-700'
+                  : 'bg-white hover:bg-slate-100 text-slate-700 hover:text-slate-900 border border-slate-200'
+              }`}
+              title="Clear tag filter"
+            >
+              <X className="w-3 h-3 text-rose-400" />
+              <span>Clear Tag</span>
+            </button>
+          </div>
+        )}
+
         {filteredTemplates.length === 0 ? (
           <div
             className={`text-center py-16 px-4 border border-dashed rounded-2xl ${
@@ -2888,7 +3741,7 @@ document.addEventListener('DOMContentLoaded', function () {
                         />
                       </button>
 
-                      {/* High-Resolution Thumbnail Image */}
+                      {/* High-Resolution Thumbnail Image with Smooth Zoom-In Hover Effect */}
                       <img
                         src={
                           tmpl.thumbnailUrl ||
@@ -2896,7 +3749,7 @@ document.addEventListener('DOMContentLoaded', function () {
                         }
                         alt={tmpl.name}
                         loading="lazy"
-                        className="w-full h-full object-cover pt-6 group-hover:scale-105 transition-transform duration-500"
+                        className="template-preview-image w-full h-full object-cover pt-6 transform-gpu transition-transform duration-500 ease-out group-hover:scale-110"
                       />
 
                       {/* Gradient Overlay with Style & Theme Mode */}
@@ -2912,9 +3765,15 @@ document.addEventListener('DOMContentLoaded', function () {
                               className="w-3 h-3 rounded-full ring-2 ring-white/40 shrink-0"
                               style={{ backgroundColor: tmpl.accentColor || '#0d6efd' }}
                             />
-                            <span className="text-[11px] font-semibold text-white/95">
+                            <button
+                              type="button"
+                              onClick={(e) => handleFilterByTag(tmpl.style || tmpl.category, e)}
+                              className="template-card-tag template-tag text-[11px] font-semibold text-white/95 hover:text-[#00E5D1] transition cursor-pointer underline-offset-2 hover:underline"
+                              title={`Click to filter entire gallery by "${tmpl.style || tmpl.category}"`}
+                              data-tag={tmpl.style || tmpl.category}
+                            >
                               {tmpl.style || tmpl.category}
-                            </span>
+                            </button>
                             <span className="text-white/40">·</span>
                             <span className="text-[11px] text-slate-300">
                               {isTemplateDark ? 'Dark UI' : 'Light UI'}
@@ -2929,53 +3788,29 @@ document.addEventListener('DOMContentLoaded', function () {
                         </div>
                       </div>
 
-                      {/* Hover Overlay with Quick View (Larger Image Overlay), Full-Screen Preview, Clone & Apply */}
-                      <div className="absolute inset-0 pt-6 bg-slate-950/65 backdrop-blur-[2px] opacity-0 group-hover:opacity-100 transition-opacity duration-150 flex flex-wrap items-center justify-center gap-1.5 px-2.5">
+                      {/* Hover Overlay with Quick Preview Screenshot & Live Demo */}
+                      <div className="template-preview-hover-overlay absolute inset-0 pt-6 bg-slate-950/55 backdrop-blur-[2px] opacity-0 group-hover:opacity-100 transition-all duration-300 ease-out flex items-center justify-center gap-2.5 px-3">
                         <button
                           type="button"
                           onClick={(e) => handleOpenQuickViewImage(tmpl, e)}
-                          className="template-quick-view-hover-btn px-2.5 py-1.5 rounded-xl bg-white/95 hover:bg-white text-slate-900 text-xs font-bold shadow-lg flex items-center gap-1 transition cursor-pointer"
-                          title="Open a larger image overlay of the template layout"
+                          aria-label={`Quick Preview larger screenshot for ${tmpl.name}`}
+                          data-action="quick-preview"
+                          data-testid="template-hover-quick-preview-btn"
+                          className="template-magnifying-glass-overlay template-quick-preview-hover-btn template-quick-view-hover-btn template-quick-preview-btn px-3 py-2 rounded-full bg-white/95 hover:bg-[#00E5D1] text-slate-900 hover:text-[#1C1C23] text-xs font-bold shadow-xl flex items-center gap-1.5 transform scale-90 group-hover:scale-100 transition-all duration-300 ease-out cursor-pointer"
+                          title="Quick Preview full-size screenshot without importing"
                         >
-                          <Maximize2 className="w-3.5 h-3.5 text-[#2222FF]" />
-                          <span>Quick View</span>
+                          <Eye className="w-4 h-4 text-[#2222FF]" />
+                          <span>Quick Preview</span>
                         </button>
+
                         <button
                           type="button"
                           onClick={(e) => handleOpenQuickPreview(tmpl, e)}
-                          className="px-2.5 py-1.5 rounded-xl bg-slate-900/90 hover:bg-slate-800 text-white border border-white/20 text-xs font-bold shadow-lg flex items-center gap-1 transition cursor-pointer"
+                          className="px-3 py-2 rounded-full bg-slate-900/90 hover:bg-slate-800 text-white border border-white/25 text-xs font-bold shadow-xl flex items-center gap-1.5 transform scale-90 group-hover:scale-100 transition-all duration-300 ease-out cursor-pointer"
                           title="Open Full-Screen Interactive Preview"
                         >
-                          <Eye className="w-3.5 h-3.5 text-[#00E5D1]" />
-                          <span>Live Demo</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={(e) => handleCloneTemplateToDashboard(tmpl, e)}
-                          className="px-2.5 py-1.5 rounded-xl bg-[#191970] hover:bg-[#00E5D1] text-[#00E5D1] hover:text-[#1C1C23] border border-[#00E5D1]/50 text-xs font-bold shadow-lg flex items-center gap-1 transition cursor-pointer"
-                          title="Create a duplicate of this template project in your dashboard for experimentation"
-                        >
-                          <CopyPlus className="w-3.5 h-3.5" />
-                          <span>Clone</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={(e) => handleExportTemplateAsPdf(tmpl, e)}
-                          aria-label={`Export ${tmpl.name} as a print-ready PDF document`}
-                          className="template-export-pdf-hover-btn px-2.5 py-1.5 rounded-xl bg-slate-900/90 hover:bg-[#00E5D1] text-white hover:text-[#1C1C23] border border-white/25 text-xs font-bold shadow-lg flex items-center gap-1 transition cursor-pointer"
-                          title="Export entire template as a print-ready PDF document for clients"
-                        >
-                          <Printer className="w-3.5 h-3.5 text-[#00E5D1]" />
-                          <span>Export PDF</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={(e) => handleApplyTemplateImmediate(tmpl, e)}
-                          className="px-2.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold shadow-lg flex items-center gap-1 transition cursor-pointer"
-                          title="Apply this template immediately to active project"
-                        >
-                          <span>Apply</span>
-                          <ArrowUpRight className="w-3.5 h-3.5" />
+                          <Maximize2 className="w-4 h-4 text-[#00E5D1]" />
+                          <span>Live Preview</span>
                         </button>
                       </div>
                     </div>
@@ -2986,12 +3821,25 @@ document.addEventListener('DOMContentLoaded', function () {
                         <h3 className="text-sm font-bold group-hover:text-blue-500 transition line-clamp-1">
                           {tmpl.name}
                         </h3>
-                        <div className="flex items-center gap-1.5 shrink-0">
+                        <div className="flex items-center gap-1 shrink-0">
                           {isCurrentProject && (
                             <span className="text-[10px] font-semibold text-emerald-500">
                               Active
                             </span>
                           )}
+                          <button
+                            type="button"
+                            onClick={(e) => handleOpenSocialShareDialog(tmpl, e)}
+                            aria-label={`Share ${tmpl.name}`}
+                            className={`template-card-share-icon-btn p-1 rounded-md transition cursor-pointer ${
+                              isDark
+                                ? 'text-slate-400 hover:text-[#00E5D1] hover:bg-slate-800/80'
+                                : 'text-slate-400 hover:text-[#2222FF] hover:bg-slate-100'
+                            }`}
+                            title={`Share ${tmpl.name} on social media`}
+                          >
+                            <Share2 className="w-3.5 h-3.5" />
+                          </button>
                           <button
                             type="button"
                             onClick={(e) => toggleFavoriteTemplate(tmpl.id, e)}
@@ -3022,95 +3870,261 @@ document.addEventListener('DOMContentLoaded', function () {
                         {tmpl.description}
                       </p>
 
-                      {/* Colorful Feature Badges on Template Card */}
-                      <div className="flex flex-wrap items-center gap-1.5 mt-3">
-                        {getTemplateFeatureBadges(tmpl)
-                          .slice(0, 4)
-                          .map((featTag) => {
+                      {/* Custom Color-Coded Labels & Tag Assignment System */}
+                      <div
+                        onClick={(e) => e.stopPropagation()}
+                        className={`template-custom-tags-section mt-3 pt-2.5 border-t ${
+                          isDark ? 'border-slate-800/80' : 'border-slate-100'
+                        }`}
+                      >
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          {(templateCustomTagsMap[tmpl.id] || []).map((customTag) => {
                             const palette =
-                              FEATURE_TAG_COLORS[featTag] || FEATURE_TAG_COLORS['AI & SaaS'];
-                            const isTagActive = selectedFeatureTags.includes(featTag);
+                              CUSTOM_TAG_COLOR_PALETTE[customTag.colorId] ||
+                              CUSTOM_TAG_COLOR_PALETTE.blue;
+                            const isFilteredByThisTag =
+                              selectedCustomTag.toLowerCase() === customTag.label.toLowerCase();
+
                             return (
-                              <button
-                                key={featTag}
-                                type="button"
-                                onClick={(e) => toggleFeatureTag(featTag, e)}
-                                className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border transition flex items-center gap-1 cursor-pointer ${
-                                  isTagActive
+                              <span
+                                key={customTag.label}
+                                data-tag={customTag.label}
+                                onClick={(e) => handleFilterByTag(customTag.label, e)}
+                                className={`template-card-tag template-tag template-custom-tag-badge group/tag inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold border transition cursor-pointer select-none hover:scale-[1.03] active:scale-[0.98] ${
+                                  isFilteredByThisTag
                                     ? palette.active
                                     : isDark
                                     ? palette.dark
                                     : palette.light
                                 }`}
-                                title={`Click to filter by "${featTag}"`}
+                                title={
+                                  isFilteredByThisTag
+                                    ? `Filtering gallery by "${customTag.label}" (click to clear)`
+                                    : `Click to filter entire gallery by "${customTag.label}"`
+                                }
                               >
-                                <span
-                                  className={`w-1.5 h-1.5 rounded-full ${
-                                    isTagActive ? 'bg-white' : palette.dot
-                                  }`}
-                                />
-                                <span>{featTag}</span>
-                              </button>
+                                <button
+                                  type="button"
+                                  onClick={(e) => handleFilterByTag(customTag.label, e)}
+                                  aria-pressed={isFilteredByThisTag}
+                                  className="template-tag-button inline-flex items-center gap-1 cursor-pointer"
+                                  title={`Click to filter entire gallery by "${customTag.label}"`}
+                                >
+                                  <span
+                                    className="w-1.5 h-1.5 rounded-full shrink-0 transition-transform group-hover/tag:scale-125"
+                                    style={{
+                                      backgroundColor: isFilteredByThisTag ? '#ffffff' : palette.hex,
+                                    }}
+                                  />
+                                  <span>{customTag.label}</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={(e) =>
+                                    handleRemoveTagFromTemplate(tmpl.id, customTag.label, e)
+                                  }
+                                  aria-label={`Remove ${customTag.label} tag from ${tmpl.name}`}
+                                  className="ml-0.5 opacity-60 hover:opacity-100 hover:text-rose-400 cursor-pointer p-0.5 rounded-full transition"
+                                  title={`Remove "${customTag.label}" label`}
+                                >
+                                  <X className="w-2.5 h-2.5" />
+                                </button>
+                              </span>
                             );
                           })}
-                      </div>
 
-                      {/* Complexity Star Rating (1–5) */}
-                      <div
-                        className={`template-complexity-rating flex items-center justify-between gap-2 mt-3 pt-2.5 border-t text-[11px] ${
-                          isDark
-                            ? 'border-slate-800/80 text-slate-300'
-                            : 'border-slate-100 text-slate-600'
-                        }`}
-                        title={complexity.hint}
-                        aria-label={`Complexity rating: ${complexity.rating} out of 5 stars (${complexity.label})`}
-                      >
-                        <div className="flex items-center gap-1.5">
-                          <span className={`font-semibold ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                            Complexity:
-                          </span>
-                          <div className="flex items-center gap-0.5" role="img" aria-label={`${complexity.rating} out of 5 stars`}>
-                            {[1, 2, 3, 4, 5].map((starIdx) => {
-                              const filled = starIdx <= complexity.rating;
+                          {/* Additional Clickable Template Preview Tags */}
+                          {(tmpl.previewTags || [])
+                            .filter(
+                              (pt) =>
+                                !(templateCustomTagsMap[tmpl.id] || []).some(
+                                  (ct) => ct.label.toLowerCase() === pt.toLowerCase()
+                                )
+                            )
+                            .slice(0, 2)
+                            .map((pt) => {
+                              const isFiltered =
+                                selectedCustomTag.toLowerCase() === pt.toLowerCase();
                               return (
-                                <Star
-                                  key={starIdx}
-                                  className={`w-3 h-3 ${
-                                    filled
-                                      ? 'fill-amber-400 text-amber-400'
+                                <button
+                                  key={pt}
+                                  type="button"
+                                  data-tag={pt}
+                                  onClick={(e) => handleFilterByTag(pt, e)}
+                                  className={`template-card-tag template-tag px-2 py-0.5 rounded-full text-[10px] font-semibold border transition cursor-pointer select-none hover:scale-[1.03] active:scale-[0.98] ${
+                                    isFiltered
+                                      ? 'bg-blue-600 text-white border-blue-500 shadow-xs'
                                       : isDark
-                                      ? 'text-slate-700'
-                                      : 'text-slate-300'
+                                      ? 'bg-slate-900/80 border-slate-700/80 text-slate-400 hover:text-white hover:border-slate-500'
+                                      : 'bg-slate-100 border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-200'
                                   }`}
-                                />
+                                  title={`Click to filter entire gallery by "${pt}"`}
+                                >
+                                  #{pt}
+                                </button>
                               );
                             })}
-                          </div>
-                          <span className="font-mono text-[10px] font-bold text-amber-500">
-                            {complexity.rating}/5
-                          </span>
+
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setActiveTagEditorTemplateId((prev) =>
+                                prev === tmpl.id ? null : tmpl.id
+                              );
+                            }}
+                            aria-label={`Assign custom color-coded label to ${tmpl.name}`}
+                            aria-expanded={activeTagEditorTemplateId === tmpl.id}
+                            className={`template-add-tag-btn inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold border transition cursor-pointer ${
+                              activeTagEditorTemplateId === tmpl.id
+                                ? isDark
+                                  ? 'bg-[#191970] text-[#00E5D1] border-[#00E5D1]/60'
+                                  : 'bg-blue-50 text-[#2222FF] border-blue-200'
+                                : isDark
+                                ? 'bg-slate-900 border-slate-700 text-slate-300 hover:border-[#00E5D1] hover:text-white'
+                                : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                            }`}
+                            title="Assign or create custom color-coded labels (e.g., E-commerce, Portfolio, Landing Page)"
+                          >
+                            <Plus className="w-2.5 h-2.5" />
+                            <span>Tag</span>
+                          </button>
                         </div>
-                        <span
-                          className={`text-[10px] font-medium truncate ${
-                            isDark ? 'text-slate-400' : 'text-slate-500'
-                          }`}
-                        >
-                          {complexity.label}
-                        </span>
+
+                        {/* Inline Tag Picker & Custom Color-Coded Label Creator */}
+                        {activeTagEditorTemplateId === tmpl.id && (
+                          <div
+                            onClick={(e) => e.stopPropagation()}
+                            className={`template-tag-assign-popover mt-2 p-2.5 rounded-xl border space-y-2 ${
+                              isDark
+                                ? 'bg-slate-950/95 border-slate-800 text-slate-100'
+                                : 'bg-slate-50 border-slate-200 text-slate-800'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between gap-1">
+                              <span className="text-[10px] font-bold uppercase tracking-wider text-[#00E5D1]">
+                                Assign Color-Coded Labels
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => setActiveTagEditorTemplateId(null)}
+                                className="text-slate-400 hover:text-white cursor-pointer"
+                                title="Close tag editor"
+                              >
+                                <X className="w-3 h-3" />
+                              </button>
+                            </div>
+
+                            <div className="flex flex-wrap gap-1">
+                              {customTagDefinitions.map((tagDef) => {
+                                const assigned = (templateCustomTagsMap[tmpl.id] || []).some(
+                                  (t) => t.label.toLowerCase() === tagDef.label.toLowerCase()
+                                );
+                                const palette =
+                                  CUSTOM_TAG_COLOR_PALETTE[tagDef.colorId] ||
+                                  CUSTOM_TAG_COLOR_PALETTE.blue;
+                                return (
+                                  <button
+                                    key={tagDef.label}
+                                    type="button"
+                                    onClick={(e) => handleToggleTagOnTemplate(tmpl.id, tagDef, e)}
+                                    className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border flex items-center gap-1 transition cursor-pointer ${
+                                      assigned
+                                        ? palette.active
+                                        : isDark
+                                        ? palette.dark
+                                        : palette.light
+                                    }`}
+                                  >
+                                    <span
+                                      className="w-1.5 h-1.5 rounded-full"
+                                      style={{
+                                        backgroundColor: assigned ? '#ffffff' : palette.hex,
+                                      }}
+                                    />
+                                    <span>{tagDef.label}</span>
+                                    {assigned && <Check className="w-2.5 h-2.5" />}
+                                  </button>
+                                );
+                              })}
+                            </div>
+
+                            <form
+                              onSubmit={(e) =>
+                                handleCreateAndAssignCustomTag(
+                                  tmpl.id,
+                                  newCustomTagLabel,
+                                  newCustomTagColor,
+                                  e
+                                )
+                              }
+                              className="pt-1.5 border-t border-slate-800/40 space-y-1.5"
+                            >
+                              <div className="flex items-center gap-1.5">
+                                <input
+                                  type="text"
+                                  value={newCustomTagLabel}
+                                  onChange={(e) => setNewCustomTagLabel(e.target.value)}
+                                  placeholder="Custom tag (e.g., Landing Page)..."
+                                  aria-label={`New custom tag for ${tmpl.name}`}
+                                  className={`template-custom-tag-input flex-1 px-2 py-1 rounded-lg text-[11px] border focus:outline-hidden focus:border-[#2222FF] ${
+                                    isDark
+                                      ? 'bg-slate-900 border-slate-700 text-slate-100 placeholder:text-slate-500'
+                                      : 'bg-white border-slate-200 text-slate-800 placeholder:text-slate-400'
+                                  }`}
+                                />
+                                <button
+                                  type="submit"
+                                  className="template-custom-tag-submit px-2 py-1 rounded-lg bg-[#2222FF] hover:bg-blue-500 text-white text-[10px] font-bold cursor-pointer shrink-0"
+                                >
+                                  Add
+                                </button>
+                              </div>
+                              <div className="flex items-center justify-between gap-1">
+                                <span className="text-[10px] text-slate-400">Label Color:</span>
+                                <div className="flex items-center gap-1">
+                                  {(
+                                    Object.keys(CUSTOM_TAG_COLOR_PALETTE) as CustomTagColorId[]
+                                  ).map((cId) => {
+                                    const sw = CUSTOM_TAG_COLOR_PALETTE[cId];
+                                    const isPicked = newCustomTagColor === cId;
+                                    return (
+                                      <button
+                                        key={cId}
+                                        type="button"
+                                        onClick={() => setNewCustomTagColor(cId)}
+                                        aria-label={`Color ${sw.name}`}
+                                        className={`w-3.5 h-3.5 rounded-full transition cursor-pointer ${
+                                          isPicked
+                                            ? 'ring-2 ring-offset-1 ring-[#00E5D1] scale-110'
+                                            : 'opacity-70 hover:opacity-100'
+                                        }`}
+                                        style={{ backgroundColor: sw.hex }}
+                                        title={sw.name}
+                                      />
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            </form>
+                          </div>
+                        )}
                       </div>
 
-                      {/* Unboxed Metadata: Tags, Typography, Date Created & Usage Frequency */}
+                      {/* Consolidated Agile Metadata Line: Complexity, Date Created & Usage Frequency */}
                       <div
-                        className={`flex items-center justify-between gap-2 text-[11px] mt-2 pt-2 border-t ${
+                        className={`template-complexity-rating flex items-center justify-between gap-2 text-[11px] mt-3 pt-2.5 border-t ${
                           isDark
                             ? 'border-slate-800/80 text-slate-400'
                             : 'border-slate-100 text-slate-500'
                         }`}
+                        title={complexity.hint}
+                        aria-label={`Complexity rating: ${complexity.rating} out of 5 stars (${complexity.label})`}
                       >
                         <div className="flex items-center gap-1.5 truncate min-w-0">
-                          <Type className="w-3 h-3 shrink-0 text-slate-400" />
-                          <span className="font-medium truncate">
-                            {tmplTheme?.fontFamily || 'Inter'}
+                          <span className="inline-flex items-center gap-0.5 font-mono text-[10px] font-bold text-amber-500 shrink-0">
+                            <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
+                            <span>{complexity.rating}/5</span>
                           </span>
                           <span aria-hidden="true">·</span>
                           <span className="template-date-created truncate" title={`Date Created: ${sortMetrics.createdDateFormatted}`}>
@@ -3129,149 +4143,77 @@ document.addEventListener('DOMContentLoaded', function () {
                         </span>
                       </div>
 
-                      {/* Personal Note / Annotation Field (Visible ONLY on Card Hover or in Favorites Tab) */}
-                      <div
-                        onClick={(e) => e.stopPropagation()}
-                        onMouseDown={(e) => e.stopPropagation()}
-                        onKeyDown={(e) => e.stopPropagation()}
-                        className={`template-card-note ${
-                          isFavoritesView
-                            ? 'block'
-                            : 'hidden group-hover:block focus-within:block'
-                        } mt-2.5 pt-2.5 border-t ${
-                          isDark ? 'border-slate-800/80' : 'border-slate-100'
-                        }`}
-                      >
-                        <div className="flex items-center justify-between gap-1.5 mb-1">
-                          <label
-                            htmlFor={`template-note-${tmpl.id}`}
-                            className={`flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider ${
-                              isDark ? 'text-[#00E5D1]' : 'text-[#2222FF]'
-                            }`}
-                          >
-                            <StickyNote className="w-3 h-3 shrink-0" />
-                            <span>Note</span>
-                          </label>
-
-                          {templateNote.trim().length > 0 && (
-                            <div className="flex items-center gap-1.5">
-                              <span
-                                className={`text-[9px] font-mono font-semibold px-1.5 py-0.5 rounded ${
-                                  isDark
-                                    ? 'bg-emerald-950/70 text-emerald-300 border border-emerald-800/60'
-                                    : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                                }`}
-                              >
-                                Saved
-                              </span>
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleUpdateTemplateNote(tmpl.id, '');
-                                }}
-                                className={`text-[10px] font-medium transition cursor-pointer ${
-                                  isDark
-                                    ? 'text-slate-400 hover:text-rose-400'
-                                    : 'text-slate-400 hover:text-rose-600'
-                                }`}
-                                title="Clear note"
-                              >
-                                Clear
-                              </button>
-                            </div>
-                          )}
-                        </div>
-
-                        <input
-                          id={`template-note-${tmpl.id}`}
-                          type="text"
-                          value={templateNote}
-                          onChange={(e) => handleUpdateTemplateNote(tmpl.id, e.target.value)}
-                          placeholder="Add a personal note or annotation..."
-                          aria-label={`Note for ${tmpl.name}`}
-                          className={`template-note-input w-full px-2.5 py-1.5 rounded-lg text-xs border transition focus:outline-hidden focus:ring-2 focus:ring-[#2222FF]/35 focus:border-[#2222FF] ${
-                            isDark
-                              ? 'bg-slate-950/90 border-slate-700/90 text-slate-100 placeholder:text-slate-500'
-                              : 'bg-slate-50/90 border-slate-200 text-slate-800 placeholder:text-slate-400'
+                      {/* Personal Note / Annotation Field (Visible ONLY in Favorites Tab) */}
+                      {isFavoritesView && (
+                        <div
+                          onClick={(e) => e.stopPropagation()}
+                          onMouseDown={(e) => e.stopPropagation()}
+                          onKeyDown={(e) => e.stopPropagation()}
+                          className={`template-card-note mt-2.5 pt-2.5 border-t ${
+                            isDark ? 'border-slate-800/80' : 'border-slate-100'
                           }`}
-                        />
-                      </div>
+                        >
+                          <input
+                            id={`template-note-${tmpl.id}`}
+                            type="text"
+                            value={templateNote}
+                            onChange={(e) => handleUpdateTemplateNote(tmpl.id, e.target.value)}
+                            placeholder="Add a personal note..."
+                            aria-label={`Note for ${tmpl.name}`}
+                            className={`template-note-input w-full px-2.5 py-1 rounded-lg text-xs border transition focus:outline-hidden focus:border-[#2222FF] ${
+                              isDark
+                                ? 'bg-slate-950/90 border-slate-700/90 text-slate-100 placeholder:text-slate-500'
+                                : 'bg-slate-50/90 border-slate-200 text-slate-800 placeholder:text-slate-400'
+                            }`}
+                          />
+                        </div>
+                      )}
                     </div>
                   </div>
 
-                  {/* Card Footer Action Bar with Compare Checkbox, Quick Preview & Apply */}
+                  {/* Clean Agile Card Footer: Utility Icons + Secondary Quick Preview + Primary Apply Button */}
                   <div
-                    className={`px-4 py-2.5 border-t flex items-center justify-between gap-2 ${
+                    className={`px-3.5 py-2.5 border-t flex items-center justify-between gap-2 flex-wrap ${
                       isDark
                         ? 'bg-slate-950/50 border-slate-800/80'
                         : 'bg-slate-50/70 border-slate-100'
                     }`}
                   >
-                    <div className="flex items-center gap-1.5">
-                      <label
-                        onClick={(e) => e.stopPropagation()}
-                        className={`px-2 py-1.5 rounded-lg text-xs font-semibold border flex items-center gap-1.5 transition cursor-pointer select-none ${
-                          isCompared
-                            ? isDark
-                              ? 'bg-[#191970] border-[#00E5D1] text-[#00E5D1]'
-                              : 'bg-blue-50 border-[#2222FF] text-[#2222FF]'
-                            : isDark
-                            ? 'bg-slate-900 border-slate-700 text-slate-300 hover:bg-slate-800 hover:text-white'
-                            : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-100 hover:text-slate-900'
-                        }`}
-                        title="Check two or more templates to compare side-by-side"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={isCompared}
-                          onChange={(e) => toggleCompareTemplate(tmpl.id, e)}
-                          className="w-3.5 h-3.5 rounded-xs accent-[#2222FF] cursor-pointer"
-                        />
-                        <span>Compare</span>
-                      </label>
-
+                    <div className="flex items-center gap-1">
                       <button
-                        type="button"
-                        onClick={(e) => handleOpenQuickViewImage(tmpl, e)}
-                        aria-label={`Quick View larger layout image for ${tmpl.name}`}
-                        className={`template-quick-view-btn px-2 py-1.5 rounded-lg text-xs font-semibold border flex items-center gap-1 transition cursor-pointer ${
-                          isDark
-                            ? 'bg-slate-900 border-slate-700 text-slate-200 hover:bg-slate-800 hover:text-white'
-                            : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100 hover:text-slate-900'
-                        }`}
-                        title="Open a larger image overlay of this template layout"
-                      >
-                        <Eye className="w-3.5 h-3.5 text-blue-500" />
-                        <span>Quick View</span>
-                      </button>
-
-                       <button
                         type="button"
                         onClick={(e) => handleCloneTemplateToDashboard(tmpl, e)}
                         aria-label={`Clone ${tmpl.name} to dashboard for experimentation`}
-                        className={`template-clone-btn px-2.5 py-1.5 rounded-lg text-xs font-semibold border flex items-center gap-1 transition cursor-pointer ${
+                        className={`template-clone-btn p-1.5 rounded-lg text-xs font-semibold border flex items-center gap-1 transition cursor-pointer ${
                           justClonedTemplateId === tmpl.id
                             ? isDark
                               ? 'bg-emerald-950/90 border-emerald-600 text-emerald-300'
                               : 'bg-emerald-50 border-emerald-300 text-emerald-700'
                             : isDark
-                            ? 'bg-slate-900 border-slate-700 text-[#00E5D1] hover:bg-[#191970]/70 hover:border-[#00E5D1] hover:text-white'
-                            : 'bg-white border-slate-200 text-[#2222FF] hover:bg-blue-50 hover:border-[#2222FF]'
+                            ? 'bg-slate-900 border-slate-700/80 text-slate-300 hover:bg-slate-800 hover:text-[#00E5D1]'
+                            : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-100 hover:text-[#2222FF]'
                         }`}
-                        title="Create a duplicate of this template project in your dashboard for experimentation"
+                        title="Clone template to dashboard sandbox"
                       >
                         {justClonedTemplateId === tmpl.id ? (
-                          <>
-                            <Check className="w-3.5 h-3.5 text-emerald-500" />
-                            <span>Cloned!</span>
-                          </>
+                          <Check className="w-3.5 h-3.5 text-emerald-500" />
                         ) : (
-                          <>
-                            <CopyPlus className="w-3.5 h-3.5" />
-                            <span>Clone</span>
-                          </>
+                          <CopyPlus className="w-3.5 h-3.5" />
                         )}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={(e) => handleOpenSocialShareDialog(tmpl, e)}
+                        aria-label={`Share ${tmpl.name} on social media`}
+                        className={`template-share-btn p-1.5 rounded-lg text-xs font-semibold border flex items-center gap-1 transition cursor-pointer ${
+                          isDark
+                            ? 'bg-slate-900 border-slate-700/80 text-slate-300 hover:bg-slate-800 hover:text-[#00E5D1]'
+                            : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-100 hover:text-[#2222FF]'
+                        }`}
+                        title="Share template design on social media"
+                      >
+                        <Share2 className="w-3.5 h-3.5 text-[#00E5D1]" />
                       </button>
 
                       <button
@@ -3279,44 +4221,58 @@ document.addEventListener('DOMContentLoaded', function () {
                         onClick={(e) => handleExportTemplateAsPdf(tmpl, e)}
                         disabled={exportingPdfTemplateId === tmpl.id}
                         aria-label={`Export ${tmpl.name} as print-ready PDF`}
-                        className={`template-export-pdf-btn px-2.5 py-1.5 rounded-lg text-xs font-semibold border flex items-center gap-1 transition cursor-pointer ${
+                        className={`template-export-pdf-btn px-2 py-1.5 rounded-lg text-[11px] font-semibold border flex items-center gap-1 transition cursor-pointer ${
                           pdfExportSuccessTemplateId === tmpl.id
                             ? isDark
                               ? 'bg-emerald-950/90 border-emerald-600 text-emerald-300'
                               : 'bg-emerald-50 border-emerald-300 text-emerald-700'
                             : isDark
-                            ? 'bg-slate-900 border-slate-700 text-slate-200 hover:bg-slate-800 hover:border-[#00E5D1] hover:text-white'
-                            : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100 hover:text-slate-900'
+                            ? 'bg-slate-900 border-slate-700/80 text-slate-300 hover:bg-slate-800 hover:text-white'
+                            : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-100 hover:text-slate-900'
                         } disabled:opacity-60`}
-                        title="Export entire template as a print-ready PDF document to share with clients"
+                        title="Export entire template as a print-ready PDF document"
                       >
                         {exportingPdfTemplateId === tmpl.id ? (
-                          <>
-                            <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-500" />
-                            <span>PDF...</span>
-                          </>
+                          <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-500" />
                         ) : pdfExportSuccessTemplateId === tmpl.id ? (
-                          <>
-                            <Check className="w-3.5 h-3.5 text-emerald-500" />
-                            <span>PDF Saved</span>
-                          </>
+                          <Check className="w-3.5 h-3.5 text-emerald-500" />
                         ) : (
-                          <>
-                            <FileText className="w-3.5 h-3.5 text-rose-500" />
-                            <span>Export PDF</span>
-                          </>
+                          <FileText className="w-3.5 h-3.5 text-rose-500" />
                         )}
+                        <span>PDF</span>
                       </button>
                     </div>
 
-                    <button
-                      type="button"
-                      onClick={(e) => handleApplyTemplateImmediate(tmpl, e)}
-                      className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold transition flex items-center gap-1 cursor-pointer shadow-2xs"
-                    >
-                      <span>Apply</span>
-                      <ArrowUpRight className="w-3.5 h-3.5" />
-                    </button>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {/* Secondary Quick Preview Button */}
+                      <button
+                        type="button"
+                        onClick={(e) => handleOpenQuickViewImage(tmpl, e)}
+                        aria-label={`Quick Preview larger screenshot for ${tmpl.name}`}
+                        data-action="quick-preview"
+                        data-testid="template-card-quick-preview-btn"
+                        className={`template-card-quick-preview-btn template-quick-preview-btn px-2.5 py-1.5 rounded-lg text-xs font-semibold border flex items-center gap-1.5 transition cursor-pointer ${
+                          isDark
+                            ? 'bg-slate-900 border-slate-700/80 text-slate-200 hover:bg-slate-800 hover:text-[#00E5D1] hover:border-[#00E5D1]/60'
+                            : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50 hover:text-blue-600 hover:border-blue-400 shadow-2xs'
+                        }`}
+                        title={`Quick Preview larger screenshot of "${tmpl.name}" without importing`}
+                      >
+                        <Eye className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+                        <span>Quick Preview</span>
+                      </button>
+
+                      {/* Primary Use Template Button */}
+                      <button
+                        type="button"
+                        onClick={(e) => handleApplyTemplateImmediate(tmpl, e)}
+                        className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold transition flex items-center gap-1 cursor-pointer shadow-2xs shrink-0"
+                        title={`Use template "${tmpl.name}"`}
+                      >
+                        <span>Use Template</span>
+                        <ArrowUpRight className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   </div>
                 </div>
               );
@@ -3325,15 +4281,302 @@ document.addEventListener('DOMContentLoaded', function () {
         )}
       </div>
 
-      {/* QUICK VIEW LARGER IMAGE OVERLAY MODAL */}
+      {/* SOCIAL MEDIA SHARING DIALOG MODAL FOR SELECTED TEMPLATE */}
+      {socialShareTemplate && (() => {
+        const dialogShareUrl = generateShareableTemplateUrl(socialShareTemplate);
+        const encodedUrl = encodeURIComponent(dialogShareUrl);
+        const encodedText = encodeURIComponent(socialShareCustomMessage);
+        const encodedTitle = encodeURIComponent(
+          `${socialShareTemplate.name} — Bootstrap 5 Design Concept`
+        );
+        const combinedPostAndUrl = `${socialShareCustomMessage}\n${dialogShareUrl}`;
+
+        const socialPlatforms = [
+          {
+            id: 'twitter',
+            name: 'X (Twitter)',
+            handle: 'Post to feed',
+            badgeText: 'X',
+            accentBg: 'bg-slate-950 border-slate-700 hover:border-[#00E5D1]',
+            iconBg: 'bg-white text-slate-950',
+            href: `https://twitter.com/intent/tweet?text=${encodedText}&url=${encodedUrl}`,
+          },
+          {
+            id: 'linkedin',
+            name: 'LinkedIn',
+            handle: 'Share with network',
+            badgeText: 'in',
+            accentBg: 'bg-[#0A66C2]/15 border-[#0A66C2]/50 hover:border-[#00E5D1]',
+            iconBg: 'bg-[#0A66C2] text-white',
+            href: `https://www.linkedin.com/sharing/share-offsite/?url=${encodedUrl}`,
+          },
+          {
+            id: 'facebook',
+            name: 'Facebook',
+            handle: 'Share design link',
+            badgeText: 'f',
+            accentBg: 'bg-[#1877F2]/15 border-[#1877F2]/50 hover:border-[#00E5D1]',
+            iconBg: 'bg-[#1877F2] text-white',
+            href: `https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}&quote=${encodedText}`,
+          },
+          {
+            id: 'reddit',
+            name: 'Reddit',
+            handle: 'Post to community',
+            badgeText: 'r/',
+            accentBg: 'bg-[#FF4500]/15 border-[#FF4500]/50 hover:border-[#00E5D1]',
+            iconBg: 'bg-[#FF4500] text-white',
+            href: `https://www.reddit.com/submit?url=${encodedUrl}&title=${encodedTitle}`,
+          },
+          {
+            id: 'whatsapp',
+            name: 'WhatsApp',
+            handle: 'Send to client chat',
+            badgeText: 'WA',
+            accentBg: 'bg-[#25D366]/15 border-[#25D366]/50 hover:border-[#00E5D1]',
+            iconBg: 'bg-[#25D366] text-slate-950',
+            href: `https://api.whatsapp.com/send?text=${encodeURIComponent(combinedPostAndUrl)}`,
+          },
+          {
+            id: 'email',
+            name: 'Email Client',
+            handle: 'Send concept via email',
+            badgeText: '@',
+            accentBg: 'bg-[#2222FF]/20 border-[#2222FF]/50 hover:border-[#00E5D1]',
+            iconBg: 'bg-[#2222FF] text-white',
+            href: `mailto:?subject=${encodedTitle}&body=${encodeURIComponent(combinedPostAndUrl)}`,
+          },
+        ];
+
+        return (
+          <div
+            id="template-social-share-dialog"
+            onClick={() => setSocialShareTemplate(null)}
+            role="dialog"
+            aria-modal="true"
+            aria-label={`Share ${socialShareTemplate.name} on Social Media`}
+            className="template-social-share-dialog fixed inset-0 z-[74] bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 sm:p-6 animate-in fade-in duration-150"
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-2xl rounded-2xl border border-slate-700/90 bg-[#1C1C23] text-slate-100 shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
+            >
+              {/* Dialog Header */}
+              <div className="px-5 py-4 bg-slate-900 border-b border-slate-800 flex items-center justify-between gap-3 shrink-0">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-9 h-9 rounded-xl bg-[#2222FF]/25 border border-[#00E5D1]/50 text-[#00E5D1] flex items-center justify-center shrink-0">
+                    <Share2 className="w-4 h-4" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-sm sm:text-base font-bold text-white truncate">
+                        Share Design Concept — {socialShareTemplate.name}
+                      </h3>
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-[#191970] text-[#00E5D1] border border-[#00E5D1]/40">
+                        {socialShareTemplate.style || socialShareTemplate.category}
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-400 truncate mt-0.5">
+                      Share this template layout across social media channels or copy a direct preview link
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setSocialShareTemplate(null)}
+                  aria-label="Close Social Media Sharing Dialog"
+                  className="p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Dialog Body */}
+              <div className="p-5 overflow-y-auto space-y-4">
+                {/* 1. OpenGraph Social Card Preview */}
+                <div className="rounded-xl border border-slate-800 bg-slate-950/90 overflow-hidden flex flex-col sm:flex-row items-stretch">
+                  <div className="sm:w-44 h-32 sm:h-auto relative shrink-0 bg-slate-900">
+                    <img
+                      src={
+                        socialShareTemplate.thumbnailUrl ||
+                        'https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&w=600&q=80'
+                      }
+                      alt={socialShareTemplate.name}
+                      className="w-full h-full object-cover"
+                    />
+                    <span
+                      className="absolute top-2 left-2 px-2 py-0.5 rounded text-[10px] font-mono font-bold text-white shadow"
+                      style={{ backgroundColor: socialShareTemplate.accentColor || '#2222FF' }}
+                    >
+                      {socialShareTemplate.blocks.length} Sections
+                    </span>
+                  </div>
+                  <div className="p-3.5 flex-1 flex flex-col justify-between min-w-0">
+                    <div>
+                      <div className="text-[10px] font-mono uppercase tracking-wider text-[#00E5D1]">
+                        Social Share Card Preview
+                      </div>
+                      <h4 className="text-sm font-bold text-white mt-0.5 truncate">
+                        {socialShareTemplate.name}
+                      </h4>
+                      <p className="text-xs text-slate-400 line-clamp-2 mt-1">
+                        {socialShareTemplate.description}
+                      </p>
+                    </div>
+                    <div className="mt-2 pt-2 border-t border-slate-800/80 flex items-center justify-between gap-2 text-[11px] text-slate-400 font-mono truncate">
+                      <span className="truncate">{dialogShareUrl}</span>
+                      <span className="text-[#00E5D1] shrink-0">Bootstrap 5.3</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 2. Customizable Social Post Message */}
+                <div>
+                  <label
+                    htmlFor="social-share-custom-message-input"
+                    className="block text-[11px] font-bold uppercase tracking-wider text-slate-300 mb-1.5"
+                  >
+                    Custom Social Post Message
+                  </label>
+                  <textarea
+                    id="social-share-custom-message-input"
+                    rows={2}
+                    value={socialShareCustomMessage}
+                    onChange={(e) => setSocialShareCustomMessage(e.target.value)}
+                    placeholder="Write a message to accompany your shared design..."
+                    className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-100 placeholder:text-slate-500 focus:outline-hidden focus:border-[#00E5D1] resize-none"
+                  />
+                </div>
+
+                {/* 3. Social Media Platforms Grid */}
+                <div>
+                  <div className="text-[11px] font-bold uppercase tracking-wider text-slate-300 mb-2">
+                    Share to Social Networks
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                    {socialPlatforms.map((platform) => (
+                      <a
+                        key={platform.id}
+                        href={platform.href}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={() =>
+                          handleSocialPlatformClick(
+                            platform.name,
+                            platform.href,
+                            combinedPostAndUrl
+                          )
+                        }
+                        aria-label={`Share ${socialShareTemplate.name} on ${platform.name}`}
+                        className={`template-social-platform-btn p-2.5 rounded-xl border transition flex items-center gap-2.5 cursor-pointer ${platform.accentBg}`}
+                      >
+                        <span
+                          className={`w-8 h-8 rounded-lg font-mono font-black text-xs flex items-center justify-center shrink-0 shadow-sm ${platform.iconBg}`}
+                        >
+                          {platform.badgeText}
+                        </span>
+                        <div className="min-w-0">
+                          <div className="text-xs font-bold text-white truncate">
+                            {platform.name}
+                          </div>
+                          <div className="text-[10px] text-slate-400 truncate">
+                            {platform.handle}
+                          </div>
+                        </div>
+                      </a>
+                    ))}
+                  </div>
+
+                  {socialSharePlatformFeedback && (
+                    <div
+                      role="status"
+                      className="mt-2.5 px-3 py-2 rounded-xl bg-emerald-950/80 border border-emerald-600/60 text-emerald-300 text-xs font-semibold flex items-center gap-2"
+                    >
+                      <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                      <span>{socialSharePlatformFeedback}</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* 4. Direct Shareable Link Copy */}
+                <div>
+                  <label
+                    htmlFor="social-share-dialog-url-input"
+                    className="block text-[11px] font-bold uppercase tracking-wider text-slate-300 mb-1.5"
+                  >
+                    Direct Shareable Template Link
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      id="social-share-dialog-url-input"
+                      type="text"
+                      readOnly
+                      value={dialogShareUrl}
+                      onFocus={(e) => e.currentTarget.select()}
+                      className="flex-1 px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-slate-200 font-mono text-xs focus:outline-hidden focus:border-[#00E5D1]"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleCopySocialDialogUrl(dialogShareUrl)}
+                      className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition cursor-pointer shrink-0 ${
+                        socialShareLinkCopied
+                          ? 'bg-emerald-600 text-white'
+                          : 'bg-[#2222FF] hover:bg-[#00E5D1] hover:text-[#1C1C23] text-white'
+                      }`}
+                    >
+                      {socialShareLinkCopied ? (
+                        <>
+                          <Check className="w-3.5 h-3.5" />
+                          <span>Copied!</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-3.5 h-3.5" />
+                          <span>Copy Link</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Dialog Footer */}
+              <div className="px-5 py-3 bg-slate-900 border-t border-slate-800 flex items-center justify-between gap-2 shrink-0">
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={(e) => handleExportTemplateAsPdf(socialShareTemplate, e)}
+                    className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer"
+                  >
+                    <Printer className="w-3.5 h-3.5 text-[#00E5D1]" />
+                    <span>Export Print-Ready PDF</span>
+                  </button>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setSocialShareTemplate(null)}
+                  className="px-4 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-semibold transition cursor-pointer"
+                >
+                  Done
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* QUICK PREVIEW LARGER SCREENSHOT OVERLAY MODAL */}
       {quickViewImageTemplate && (
         <div
-          id="template-quick-view-image-overlay"
+          id="template-quick-preview-overlay"
+          data-testid="template-quick-preview-overlay"
           onClick={() => setQuickViewImageTemplate(null)}
           role="dialog"
           aria-modal="true"
-          aria-label={`Quick View Layout Image: ${quickViewImageTemplate.name}`}
-          className="template-quick-view-overlay fixed inset-0 z-[72] bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4 sm:p-8 animate-in fade-in duration-150"
+          aria-label={`Quick Preview Larger Screenshot: ${quickViewImageTemplate.name}`}
+          className="template-quick-preview-overlay template-quick-view-overlay template-screenshot-overlay template-quick-view-image-overlay fixed inset-0 z-[72] bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4 sm:p-8 animate-in fade-in duration-150"
         >
           <div
             onClick={(e) => e.stopPropagation()}
@@ -3347,7 +4590,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     type="button"
                     onClick={() => handleCycleQuickViewImage(-1)}
                     className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer"
-                    title="Previous Template Layout Image"
+                    title="Previous Template Screenshot"
                   >
                     <ChevronLeft className="w-4 h-4" />
                   </button>
@@ -3355,7 +4598,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     type="button"
                     onClick={() => handleCycleQuickViewImage(1)}
                     className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer"
-                    title="Next Template Layout Image"
+                    title="Next Template Screenshot"
                   >
                     <ChevronRight className="w-4 h-4" />
                   </button>
@@ -3368,14 +4611,17 @@ document.addEventListener('DOMContentLoaded', function () {
                       style={{ backgroundColor: quickViewImageTemplate.accentColor || '#2222FF' }}
                     />
                     <h3 className="text-sm sm:text-base font-bold text-white truncate">
-                      {quickViewImageTemplate.name} — Layout Quick View
+                      {quickViewImageTemplate.name} — Quick Preview Screenshot
                     </h3>
                     <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-[#191970] text-[#00E5D1] border border-[#00E5D1]/40">
                       {quickViewImageTemplate.style || quickViewImageTemplate.category}
                     </span>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-semibold bg-emerald-950/70 text-emerald-400 border border-emerald-500/40 hidden sm:inline">
+                      Quick Preview (No Import Needed)
+                    </span>
                   </div>
                   <p className="text-xs text-slate-400 truncate mt-0.5">
-                    {quickViewImageTemplate.description}
+                    Viewing full-resolution screenshot without needing to import into your workspace
                   </p>
                 </div>
               </div>
@@ -3475,14 +4721,14 @@ document.addEventListener('DOMContentLoaded', function () {
                       <span className="w-2.5 h-2.5 rounded-full bg-emerald-500/85" />
                     </div>
                     <span className="text-[11px] font-mono text-slate-400">
-                      {quickViewImageTemplate.name} — High-Resolution Layout Preview
+                      {quickViewImageTemplate.name} — High-Resolution Screenshot Preview (No Import Needed)
                     </span>
                     <span className="text-[10px] font-mono text-[#00E5D1]">
                       {quickViewImageTemplate.blocks.length} Sections
                     </span>
                   </div>
 
-                  {/* Enlarged Template Layout Image */}
+                  {/* Enlarged Template Screenshot Image */}
                   <div className="relative bg-slate-900">
                     <img
                       src={
@@ -3491,8 +4737,9 @@ document.addEventListener('DOMContentLoaded', function () {
                           'https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&w=1600&q=85'
                         ).replace(/w=\d+/, 'w=1600')
                       }
-                      alt={`${quickViewImageTemplate.name} enlarged layout preview`}
-                      className="template-quick-view-image w-full max-h-[62vh] object-cover block"
+                      alt={`${quickViewImageTemplate.name} enlarged screenshot layout preview`}
+                      data-testid="template-preview-screenshot"
+                      className="template-preview-screenshot template-screenshot-large template-quick-view-image w-full max-h-[62vh] object-cover block"
                     />
                   </div>
                 </div>
@@ -4081,6 +5328,35 @@ document.addEventListener('DOMContentLoaded', function () {
                   <span>Section Guides</span>
                 </button>
               )}
+
+              {/* Quick Preview Auto-Playback Mode Toggle inside Preview Modal */}
+              <button
+                type="button"
+                id="quick-preview-modal-playback-toggle"
+                onClick={handleToggleQuickPreviewPlayback}
+                aria-pressed={isQuickPreviewPlaybackActive}
+                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-semibold border transition cursor-pointer select-none ${
+                  isQuickPreviewPlaybackActive
+                    ? 'bg-emerald-950/90 text-emerald-300 border-emerald-600/80 shadow-xs'
+                    : 'bg-slate-950 text-slate-300 border-slate-800 hover:text-white hover:border-slate-700'
+                }`}
+                title="Toggle automatic preview playback mode (cycles through component views)"
+              >
+                {isQuickPreviewPlaybackActive ? (
+                  <>
+                    <Pause className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                    <span>Auto Playback</span>
+                    <span className="text-[10px] font-mono px-1.5 py-0.2 rounded-full bg-emerald-600/20 text-emerald-300 border border-emerald-500/30 font-bold">
+                      {playbackBlockIndex + 1}/{quickPreviewTemplate.blocks.length}
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <Play className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+                    <span>Auto Playback</span>
+                  </>
+                )}
+              </button>
 
               {/* Responsive Device Viewport Controls (Mobile, Tablet, Desktop, Full) */}
               <div

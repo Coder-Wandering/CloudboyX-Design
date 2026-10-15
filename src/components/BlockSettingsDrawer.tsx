@@ -30,11 +30,12 @@ import {
   RefreshCw,
   Code2,
 } from 'lucide-react';
-import { BlockInstance, BlockSettings } from '../types';
+import { BlockInstance, BlockSettings, SiteTheme } from '../types';
 import { BlockBackgroundPanel } from './BlockBackgroundPanel';
 import { BlockSpacingPanel } from './BlockSpacingPanel';
 import { BlockShadowsPanel } from './BlockShadowsPanel';
 import { ResponsiveInspectorHud } from './ResponsiveInspectorHud';
+import { SectionDividerEditor } from './SectionDividerEditor';
 import {
   Breakpoint,
   VisualNode,
@@ -70,6 +71,7 @@ interface BlockSettingsDrawerProps {
   onOpenLibrary?: () => void;
   isEmbedded?: boolean;
   themeMode?: 'light' | 'dark';
+  theme?: SiteTheme;
 }
 
 export const BlockSettingsDrawer: React.FC<BlockSettingsDrawerProps> = ({
@@ -92,6 +94,7 @@ export const BlockSettingsDrawer: React.FC<BlockSettingsDrawerProps> = ({
   onOpenLibrary,
   isEmbedded = true,
   themeMode = 'light',
+  theme,
 }) => {
   const [activeTab, setActiveTab] = useState<BlockControlTab>('content');
   const contentFileInputRef = useRef<HTMLInputElement>(null);
@@ -477,6 +480,41 @@ export const BlockSettingsDrawer: React.FC<BlockSettingsDrawerProps> = ({
               </div>
             )}
 
+            {/* Specialized Section Divider Configuration Panel */}
+            {block.type === 'section-divider' && (
+              <div
+                className={`p-4 rounded-xl border shadow-xs space-y-4 ${
+                  isDark ? 'bg-slate-900/90 border-slate-800' : 'bg-white border-slate-200/80'
+                }`}
+              >
+                <div className="pb-2 border-b border-slate-200/60 dark:border-slate-800">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-900 dark:text-white">
+                    Section Divider & Transition Controls
+                  </h4>
+                  <p className="text-[11px] text-slate-500 mt-0.5">
+                    Customize SVG waves, geometric angles, border lines, spacing height, and colors.
+                  </p>
+                </div>
+
+                <SectionDividerEditor
+                  block={block}
+                  theme={
+                    theme || {
+                      primaryColor: '#0d6efd',
+                      secondaryColor: '#6c757d',
+                      darkColor: '#212529',
+                      lightColor: '#f8f9fa',
+                      fontFamily: 'Inter',
+                      buttonStyle: 'rounded',
+                    }
+                  }
+                  onUpdateContent={(updatedContent) => onUpdateContent(block.id, updatedContent)}
+                  onUpdateSettings={(updatedSettings) => onUpdateSettings(block.id, updatedSettings)}
+                  isDark={isDark}
+                />
+              </div>
+            )}
+
             <div
               className={`p-4 rounded-xl border shadow-xs space-y-4 ${
                 isDark ? 'bg-slate-900/90 border-slate-800' : 'bg-white border-slate-200/80'
@@ -709,6 +747,49 @@ export const BlockSettingsDrawer: React.FC<BlockSettingsDrawerProps> = ({
                       </button>
                     );
                   })}
+                </div>
+              </div>
+
+              {/* Semantic Tag Dropdown */}
+              <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800">
+                <div>
+                  <label
+                    htmlFor="semantic-tag-select"
+                    className="text-xs font-medium text-slate-700 dark:text-slate-300 block"
+                  >
+                    Semantic Tag
+                  </label>
+                  <span className="text-[10px] text-slate-500 dark:text-slate-400">
+                    HTML5 container landmark
+                  </span>
+                </div>
+                <div className="w-44">
+                  <select
+                    id="semantic-tag-select"
+                    data-testid="semantic-tag-dropdown"
+                    value={settings.semanticTag || 'section'}
+                    onChange={(e) =>
+                      onUpdateSettings(block.id, {
+                        semanticTag: e.target.value as
+                          | 'section'
+                          | 'header'
+                          | 'footer'
+                          | 'article'
+                          | 'aside',
+                      })
+                    }
+                    className={`w-full text-xs font-semibold px-2.5 py-1.5 rounded-lg border transition cursor-pointer font-mono ${
+                      isDark
+                        ? 'bg-slate-950 border-slate-800 text-cyan-300 focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500'
+                        : 'bg-slate-50 border-slate-200 text-blue-700 focus:border-blue-500 focus:ring-1 focus:ring-blue-500'
+                    }`}
+                  >
+                    <option value="section">&lt;section&gt;</option>
+                    <option value="header">&lt;header&gt;</option>
+                    <option value="footer">&lt;footer&gt;</option>
+                    <option value="article">&lt;article&gt;</option>
+                    <option value="aside">&lt;aside&gt;</option>
+                  </select>
                 </div>
               </div>
             </div>

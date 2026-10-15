@@ -23,6 +23,7 @@ import {
   Trash2,
   ExternalLink,
   BookmarkCheck,
+  Type,
 } from 'lucide-react';
 import { BlockInstance, SiteTheme, SeoSettings, BlockCategory, BlockPreset } from '../types';
 import { Breakpoint, VisualNode } from '../engine/bootstrapCascade';
@@ -30,6 +31,7 @@ import { DesignSidebarTab } from './DesignSidebar';
 import { BlockSettingsDrawer } from './BlockSettingsDrawer';
 import { BlockLibraryDrawer } from './BlockLibraryDrawer';
 import { ThemeModal } from './ThemeModal';
+import { FontShowcaseTab } from './FontShowcaseTab';
 import { PageSettingsModal } from './PageSettingsModal';
 import { BlockLayoutsTab } from './BlockLayoutsTab';
 import { CustomCssEditor } from './CustomCssEditor';
@@ -151,7 +153,8 @@ export const DesignStudioModal: React.FC<DesignStudioModalProps> = ({
     { id: 'blocks', label: 'Add Components', icon: Layers, badge: blocks.length },
     { id: 'presets', label: 'Presets', icon: BookmarkCheck, badge: 'Templates' },
     { id: 'theme', label: 'Theme Studio', icon: Palette },
-    { id: 'seo', label: 'Page Settings', icon: Globe },
+    { id: 'fonts', label: 'Font Showcase', icon: Type },
+    { id: 'seo', label: 'SEO Settings', icon: Globe },
     { id: 'layouts', label: 'Layouts', icon: LayoutGrid },
     { id: 'css', label: 'Custom CSS', icon: FileCode },
     { id: 'templates', label: 'Templates', icon: Sparkles },
@@ -486,6 +489,19 @@ export const DesignStudioModal: React.FC<DesignStudioModalProps> = ({
                 theme={theme}
                 onUpdateTheme={onUpdateTheme}
                 isEmbedded={true}
+              />
+            </div>
+          )}
+
+          {/* TAB: GOOGLE FONTS SHOWCASE */}
+          {activeTab === 'fonts' && (
+            <div className="h-full flex flex-col overflow-hidden p-2 sm:p-4">
+              <FontShowcaseTab
+                theme={theme}
+                themeMode={themeMode}
+                onUpdateTheme={onUpdateTheme}
+                onSelectTab={onSelectTab}
+                isSpacious={true}
               />
             </div>
           )}

@@ -3,8 +3,22 @@ import { BlockDefinition, BlockInstance, BlockSettings, SiteTheme } from '../typ
 export function getSpacingClasses(settings: Partial<BlockSettings>): string {
   const classes: string[] = [];
 
-  const pt = typeof settings.paddingTop === 'number' ? Math.min(Math.max(settings.paddingTop, 0), 5) : 0;
-  const pb = typeof settings.paddingBottom === 'number' ? Math.min(Math.max(settings.paddingBottom, 0), 5) : 0;
+  let pt = 0;
+  if (typeof settings.paddingTop === 'number') {
+    pt = Math.min(Math.max(settings.paddingTop, 0), 5);
+  } else if (typeof settings.paddingTop === 'string') {
+    const match = settings.paddingTop.match(/\d+/);
+    pt = match ? Math.min(Math.max(parseInt(match[0], 10), 0), 5) : 3;
+  }
+
+  let pb = 0;
+  if (typeof settings.paddingBottom === 'number') {
+    pb = Math.min(Math.max(settings.paddingBottom, 0), 5);
+  } else if (typeof settings.paddingBottom === 'string') {
+    const match = settings.paddingBottom.match(/\d+/);
+    pb = match ? Math.min(Math.max(parseInt(match[0], 10), 0), 5) : 3;
+  }
+
   const ps = typeof settings.paddingLeft === 'number' ? Math.min(Math.max(settings.paddingLeft, 0), 5) : 0;
   const pe = typeof settings.paddingRight === 'number' ? Math.min(Math.max(settings.paddingRight, 0), 5) : 0;
 
@@ -54,7 +68,7 @@ export function getSpacingClasses(settings: Partial<BlockSettings>): string {
   return classStr.replace('ms-auto me-auto', 'mx-auto');
 }
 
-function getPaddingClasses(pt: number, pb: number, settings?: Partial<BlockSettings>): string {
+function getPaddingClasses(pt: number | string, pb: number | string, settings?: Partial<BlockSettings>): string {
   if (settings) {
     return getSpacingClasses({ ...settings, paddingTop: pt, paddingBottom: pb });
   }
@@ -1869,6 +1883,144 @@ export const BLOCK_DEFINITIONS: BlockDefinition[] = [
     </div>
   </div>
 </footer>`;
+    },
+  },
+  {
+    type: 'section-divider',
+    category: 'dividers',
+    name: 'Section Divider',
+    description: 'Customizable section spacing, border rules, or SVG wave/curve transitions',
+    iconName: 'Waves',
+    tags: ['divider', 'spacer', 'wave', 'curve', 'separator', 'border', 'transition'],
+    defaultSettings: {
+      bgType: 'color',
+      bgColor: 'transparent',
+      paddingTop: 0,
+      paddingBottom: 0,
+      containerWidth: 'container-fluid',
+      textColor: 'dark',
+      textAlign: 'center',
+      showTitle: false,
+      showSubtitle: false,
+      showDescription: false,
+      showButtons: false,
+      showMedia: false,
+      showIcons: false,
+    },
+    defaultContent: {
+      dividerType: 'wave-smooth',
+      height: 70,
+      fillColor: '#0d6efd',
+      bgColor: 'transparent',
+      flipHorizontal: false,
+      flipVertical: false,
+      lineWidth: 2,
+      lineStyle: 'solid',
+      lineOpacity: 80,
+      badgeText: '✦ Section Break',
+      badgeIcon: 'bi-stars',
+      showBadge: false,
+    },
+    renderHtml: (block, theme, isEditor) => {
+      const content = block.content || {};
+      const dividerType = content.dividerType || 'wave-smooth';
+      const height = typeof content.height === 'number' ? content.height : 70;
+      const fillColor = content.fillColor || theme.primaryColor || '#0d6efd';
+      const bgColor = content.bgColor || 'transparent';
+      const flipH = content.flipHorizontal ? -1 : 1;
+      const flipV = content.flipVertical ? -1 : 1;
+      const transformStyle = (flipH !== 1 || flipV !== 1) ? `transform: scale(${flipH}, ${flipV});` : '';
+      const lineWidth = content.lineWidth || 2;
+      const lineOpacity = typeof content.lineOpacity === 'number' ? content.lineOpacity / 100 : 0.8;
+      const badgeText = content.badgeText || '✦ Section Break';
+
+      let inner = '';
+      if (dividerType === 'wave-smooth') {
+        inner = `
+<div class="w-100 overflow-hidden" style="line-height: 0; background-color: ${bgColor};">
+  <svg viewBox="0 0 1440 120" fill="none" preserveAspectRatio="none" style="width: 100%; height: ${height}px; display: block; ${transformStyle}">
+    <path d="M0,32L48,42.7C96,53,192,75,288,80C384,85,480,75,576,58.7C672,43,768,21,864,21.3C960,21,1056,43,1152,53.3C1248,64,1344,64,1392,64L1440,64L1440,120L1392,120C1344,120,1248,120,1152,120C1056,120,960,120,864,120C768,120,672,120,576,120C480,120,384,120,288,120C192,120,96,120,48,120L0,120Z" fill="${fillColor}"></path>
+  </svg>
+</div>`;
+      } else if (dividerType === 'wave-layered') {
+        inner = `
+<div class="w-100 overflow-hidden" style="line-height: 0; background-color: ${bgColor};">
+  <svg viewBox="0 0 1440 120" fill="none" preserveAspectRatio="none" style="width: 100%; height: ${height}px; display: block; ${transformStyle}">
+    <path opacity="0.35" d="M0,0L60,10.7C120,21,240,43,360,53.3C480,64,600,64,720,58.7C840,53,960,43,1080,48C1200,53,1320,75,1380,85.3L1440,96L1440,120L1380,120C1320,120,1200,120,1080,120C960,120,840,120,720,120C600,120,480,120,360,120C240,120,120,120,60,120L0,120Z" fill="${fillColor}"></path>
+    <path d="M0,48L48,58.7C96,69,192,91,288,96C384,101,480,91,576,80C672,69,768,59,864,58.7C960,59,1056,69,1152,74.7C1248,80,1344,80,1392,80L1440,80L1440,120L1392,120C1344,120,1248,120,1152,120C1056,120,960,120,864,120C768,120,672,120,576,120C480,120,384,120,288,120C192,120,96,120,48,120L0,120Z" fill="${fillColor}"></path>
+  </svg>
+</div>`;
+      } else if (dividerType === 'curve-concave') {
+        inner = `
+<div class="w-100 overflow-hidden" style="line-height: 0; background-color: ${bgColor};">
+  <svg viewBox="0 0 1440 100" fill="none" preserveAspectRatio="none" style="width: 100%; height: ${height}px; display: block; ${transformStyle}">
+    <path d="M0,0 Q720,100 1440,0 L1440,100 L0,100 Z" fill="${fillColor}"></path>
+  </svg>
+</div>`;
+      } else if (dividerType === 'curve-convex') {
+        inner = `
+<div class="w-100 overflow-hidden" style="line-height: 0; background-color: ${bgColor};">
+  <svg viewBox="0 0 1440 100" fill="none" preserveAspectRatio="none" style="width: 100%; height: ${height}px; display: block; ${transformStyle}">
+    <path d="M0,100 Q720,0 1440,100 L1440,100 L0,100 Z" fill="${fillColor}"></path>
+  </svg>
+</div>`;
+      } else if (dividerType === 'tilt-slant') {
+        inner = `
+<div class="w-100 overflow-hidden" style="line-height: 0; background-color: ${bgColor};">
+  <svg viewBox="0 0 1440 100" fill="none" preserveAspectRatio="none" style="width: 100%; height: ${height}px; display: block; ${transformStyle}">
+    <polygon points="0,0 1440,100 1440,100 0,100" fill="${fillColor}"></polygon>
+  </svg>
+</div>`;
+      } else if (dividerType === 'triangle-arrow') {
+        inner = `
+<div class="w-100 overflow-hidden" style="line-height: 0; background-color: ${bgColor};">
+  <svg viewBox="0 0 1440 80" fill="none" preserveAspectRatio="none" style="width: 100%; height: ${height}px; display: block; ${transformStyle}">
+    <polygon points="0,0 720,80 1440,0 1440,80 0,80" fill="${fillColor}"></polygon>
+  </svg>
+</div>`;
+      } else if (dividerType === 'zigzag') {
+        inner = `
+<div class="w-100 overflow-hidden" style="line-height: 0; background-color: ${bgColor};">
+  <svg viewBox="0 0 1440 60" fill="none" preserveAspectRatio="none" style="width: 100%; height: ${height}px; display: block; ${transformStyle}">
+    <path d="M0,0 L60,60 L120,0 L180,60 L240,0 L300,60 L360,0 L420,60 L480,0 L540,60 L600,0 L660,60 L720,0 L780,60 L840,0 L900,60 L960,0 L1020,60 L1080,0 L1140,60 L1200,0 L1260,60 L1320,0 L1380,60 L1440,0 L1440,60 L0,60 Z" fill="${fillColor}"></path>
+  </svg>
+</div>`;
+      } else if (dividerType === 'line-solid') {
+        inner = `
+<div class="container py-3">
+  <hr class="my-0" style="border: none; border-top: ${lineWidth}px solid ${fillColor}; opacity: ${lineOpacity};" />
+</div>`;
+      } else if (dividerType === 'line-dashed') {
+        inner = `
+<div class="container py-3">
+  <div style="border-top: ${lineWidth}px dashed ${fillColor}; opacity: ${lineOpacity};"></div>
+</div>`;
+      } else if (dividerType === 'line-dotted') {
+        inner = `
+<div class="container py-3">
+  <div style="border-top: ${lineWidth * 1.5}px dotted ${fillColor}; opacity: ${lineOpacity};"></div>
+</div>`;
+      } else if (dividerType === 'line-gradient') {
+        inner = `
+<div class="container py-3">
+  <div style="height: ${lineWidth}px; background: linear-gradient(90deg, transparent, ${fillColor}, transparent); opacity: ${lineOpacity};"></div>
+</div>`;
+      } else if (dividerType === 'line-badge') {
+        inner = `
+<div class="container py-3 position-relative text-center">
+  <hr class="position-absolute top-50 start-0 w-100 my-0" style="border: none; border-top: ${lineWidth}px solid ${fillColor}; opacity: ${lineOpacity}; z-index: 1;" />
+  <span class="position-relative badge bg-white text-dark border px-3 py-2 rounded-pill shadow-sm" style="z-index: 2;" ${editAttr(isEditor, 'badgeText')}>
+    ${badgeText}
+  </span>
+</div>`;
+      } else {
+        inner = `<div style="height: ${height}px; width: 100%;" class="d-block"></div>`;
+      }
+
+      return `
+<div id="block-${block.id}" data-block-id="${block.id}" class="studio-section-divider-block position-relative" style="background-color: ${bgColor};">
+  ${inner}
+</div>`;
     },
   },
 ];

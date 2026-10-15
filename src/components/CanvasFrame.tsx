@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
   Sliders,
+  Settings,
   ArrowUp,
   ArrowDown,
   Copy,
@@ -22,6 +23,11 @@ import {
   GripVertical,
   Layers,
   Code2,
+  Grid3X3,
+  CheckSquare,
+  CopyPlus,
+  X,
+  Boxes,
 } from 'lucide-react';
 import { BlockInstance, SiteTheme, ViewportMode, SeoSettings, BlockAnimationMeta } from '../types';
 import { generateCompleteHtml } from '../utils/htmlGenerator';
@@ -43,8 +49,17 @@ interface CanvasFrameProps {
   activeBreakpoint?: Breakpoint;
   onBreakpointChange?: (bp: Breakpoint) => void;
   selectedBlockId: string | null;
-  onSelectBlock: (id: string) => void;
+  selectedBlockIds?: string[];
+  isMultiSelectMode?: boolean;
+  onToggleMultiSelectMode?: () => void;
+  onSelectBlock: (id: string, isMultiToggle?: boolean) => void;
+  onSelectAllBlocks?: () => void;
+  onDeselectAllBlocks?: () => void;
+  onMoveSelectedBlocks?: (direction: 'up' | 'down') => void;
+  onDuplicateSelectedBlocks?: () => void;
+  onDeleteSelectedBlocks?: () => void;
   onOpenSettings: (id: string) => void;
+  onOpenParameters?: (id: string) => void;
   onOpenCodeEditor?: (id: string) => void;
   onMoveUp: (id: string) => void;
   onMoveDown: (id: string) => void;
@@ -142,8 +157,17 @@ export const CanvasFrame: React.FC<CanvasFrameProps> = ({
   activeBreakpoint = 'lg',
   onBreakpointChange,
   selectedBlockId,
+  selectedBlockIds = [],
+  isMultiSelectMode = false,
+  onToggleMultiSelectMode,
   onSelectBlock,
+  onSelectAllBlocks,
+  onDeselectAllBlocks,
+  onMoveSelectedBlocks,
+  onDuplicateSelectedBlocks,
+  onDeleteSelectedBlocks,
   onOpenSettings,
+  onOpenParameters,
   onOpenCodeEditor,
   onMoveUp,
   onMoveDown,
@@ -166,6 +190,25 @@ export const CanvasFrame: React.FC<CanvasFrameProps> = ({
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [isDragOver, setIsDragOver] = useState(false);
   const [showCascadeInfo, setShowCascadeInfo] = useState(false);
+
+  // Visual Bootstrap 5 12-Column Grid Guidelines Overlay Toggle state
+  const [isGridOverlayEnabled, setIsGridOverlayEnabled] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem('bootstrap_canvas_grid_overlay');
+      return saved !== null ? saved === 'true' : true;
+    } catch {
+      return true;
+    }
+  });
+  const [isHoveringCanvas, setIsHoveringCanvas] = useState<boolean>(false);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('bootstrap_canvas_grid_overlay', String(isGridOverlayEnabled));
+    } catch {
+      // ignore
+    }
+  }, [isGridOverlayEnabled]);
 
   // Standard browser Drag-and-Drop state for reordering BlockInstances in Canvas view
   const [draggedBlockId, setDraggedBlockId] = useState<string | null>(null);
@@ -331,7 +374,7 @@ export const CanvasFrame: React.FC<CanvasFrameProps> = ({
   const currentFrameConfig = BREAKPOINT_FRAME_CONFIG[currentBp];
   const CurrentDeviceIcon = BREAKPOINT_DEVICE_ICONS[currentBp];
 
-  // Generate full HTML with active animationMeta
+  // Generate full HTML with active animationMeta and multi-select support
   const htmlContent = generateCompleteHtml(
     blocks,
     theme,
@@ -339,8 +382,28 @@ export const CanvasFrame: React.FC<CanvasFrameProps> = ({
     !isPreviewMode,
     selectedBlockId,
     seoSettings,
-    animationMeta
+    animationMeta,
+    selectedBlockIds,
+    isMultiSelectMode
   );
+
+  // Sync selected block IDs and multi-select mode to iframe
+  useEffect(() => {
+    if (iframeRef.current?.contentWindow) {
+      try {
+        iframeRef.current.contentWindow.postMessage(
+          {
+            type: 'SET_SELECTED_BLOCKS',
+            blockIds: selectedBlockIds,
+            isMultiSelect: isMultiSelectMode,
+          },
+          '*'
+        );
+      } catch (err) {
+        // Fallback for cross-origin or initial mount
+      }
+    }
+  }, [selectedBlockIds, isMultiSelectMode]);
 
   // Post message to iframe whenever block animation is triggered
   useEffect(() => {
@@ -365,7 +428,11 @@ export const CanvasFrame: React.FC<CanvasFrameProps> = ({
       if (!e.data || typeof e.data !== 'object') return;
 
       if (e.data.type === 'BLOCK_CLICKED' && e.data.blockId) {
-        onSelectBlock(e.data.blockId);
+        onSelectBlock(e.data.blockId, Boolean(e.data.isMultiToggle));
+      }
+
+      if (e.data.type === 'BLOCK_MULTI_SELECT_TOGGLE' && e.data.blockId) {
+        onSelectBlock(e.data.blockId, true);
       }
 
       if (e.data.type === 'OPEN_BLOCK_CODE_EDITOR' && e.data.blockId) {
@@ -373,6 +440,34 @@ export const CanvasFrame: React.FC<CanvasFrameProps> = ({
         if (onOpenCodeEditor) {
           onOpenCodeEditor(e.data.blockId);
         }
+      }
+
+      if (
+        (e.data.type === 'OPEN_BLOCK_PARAMETERS' || e.data.type === 'OPEN_BLOCK_SETTINGS') &&
+        e.data.blockId
+      ) {
+        onSelectBlock(e.data.blockId);
+        if (onOpenParameters) {
+          onOpenParameters(e.data.blockId);
+        } else {
+          onOpenSettings(e.data.blockId);
+        }
+      }
+
+      if (e.data.type === 'MOVE_BLOCK_UP' && e.data.blockId) {
+        onMoveUp(e.data.blockId);
+      }
+
+      if (e.data.type === 'MOVE_BLOCK_DOWN' && e.data.blockId) {
+        onMoveDown(e.data.blockId);
+      }
+
+      if (e.data.type === 'DUPLICATE_BLOCK' && e.data.blockId) {
+        onDuplicate(e.data.blockId);
+      }
+
+      if (e.data.type === 'DELETE_BLOCK' && e.data.blockId) {
+        onDelete(e.data.blockId);
       }
 
       if (e.data.type === 'BLOCK_DRAG_START') {
@@ -423,6 +518,14 @@ export const CanvasFrame: React.FC<CanvasFrameProps> = ({
           }
         }
       }
+
+      if (e.data.type === 'IFRAME_MOUSE_ENTER') {
+        setIsHoveringCanvas(true);
+      }
+
+      if (e.data.type === 'IFRAME_MOUSE_LEAVE') {
+        setIsHoveringCanvas(false);
+      }
     };
 
     window.addEventListener('message', handleMessage);
@@ -430,6 +533,10 @@ export const CanvasFrame: React.FC<CanvasFrameProps> = ({
   }, [
     onSelectBlock,
     onOpenCodeEditor,
+    onOpenParameters,
+    onOpenSettings,
+    onDuplicate,
+    onDelete,
     onInlineTextChange,
     selectedBlockId,
     onCopyBlock,
@@ -516,6 +623,30 @@ export const CanvasFrame: React.FC<CanvasFrameProps> = ({
   const selectedIndex = blocks.findIndex((b) => b.id === selectedBlockId);
   const isDark = (themeMode ? themeMode === 'dark' : theme.colorMode === 'dark');
 
+  // Track dragging state across internal reordering and external component drop
+  const isDraggingAnyElement =
+    draggedBlockId !== null || isDragOver || dragOverBlockId !== null;
+  const isGridGuidelinesVisible =
+    isGridOverlayEnabled && (isHoveringCanvas || isDraggingAnyElement);
+
+  // Synchronize grid guidelines configuration to iframe
+  useEffect(() => {
+    if (iframeRef.current?.contentWindow) {
+      try {
+        iframeRef.current.contentWindow.postMessage(
+          {
+            type: 'SET_GRID_OVERLAY',
+            enabled: isGridOverlayEnabled,
+            visible: isGridGuidelinesVisible,
+          },
+          '*'
+        );
+      } catch {
+        // Fallback for cross-origin or initial mount
+      }
+    }
+  }, [isGridOverlayEnabled, isGridGuidelinesVisible]);
+
   return (
     <div
       onDragOver={handleDragOver}
@@ -535,188 +666,230 @@ export const CanvasFrame: React.FC<CanvasFrameProps> = ({
         </div>
       )}
 
-      {/* 1. TOP RESPONSIVE BREAKPOINT RULER & ACTIVE CASCADE TIER BANNER */}
+      {/* 1. UNIFIED AGILE CANVAS BAR: Draggable Section Strip + Compact Responsive Tier Switcher */}
       {!isPreviewMode && (
         <div
           id="bootstrap-breakpoint-canvas-ruler"
-          className="w-full bg-slate-900 text-slate-200 px-4 py-2.5 border-b border-slate-800 flex flex-col md:flex-row items-center justify-between gap-2.5 shrink-0 z-20 shadow-md select-none"
-        >
-          {/* Active Cascade Tier Status Pill with Glowing Dot */}
-          <div className="flex items-center gap-2.5">
-            <div className="flex items-center gap-2 px-2.5 py-1 bg-slate-950 rounded-lg border border-slate-800">
-              <span className="relative flex h-2.5 w-2.5">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-blue-500"></span>
-              </span>
-              <span className="text-[11px] font-bold text-slate-300 flex items-center gap-1.5">
-                <span className="text-slate-400 font-normal">Active Tier:</span>
-                <span className="text-blue-400 uppercase font-mono font-bold tracking-wide">
-                  {currentBp}
-                </span>
-                <span className="text-slate-400 font-medium">({BREAKPOINT_LABELS[currentBp].label})</span>
-              </span>
-            </div>
-
-            {/* Quick Specs Badge */}
-            <div className="hidden lg:flex items-center gap-2 text-[10px] font-mono text-slate-400">
-              <span className="bg-slate-800/80 px-2 py-0.5 rounded border border-slate-700">
-                Range: <strong className="text-amber-300">{BREAKPOINT_LABELS[currentBp].pixelRange}</strong>
-              </span>
-              <span className="bg-slate-800/80 px-2 py-0.5 rounded border border-slate-700">
-                Infix: <strong className="text-emerald-400">{currentBp === 'xs' ? 'none (base)' : `-${currentBp}-`}</strong>
-              </span>
-              <span className="bg-slate-800/80 px-2 py-0.5 rounded border border-slate-700">
-                Max Container: <strong className="text-slate-200">{BOOTSTRAP_CONTAINER_MAX_WIDTH[currentBp]}</strong>
-              </span>
-            </div>
-
-            {/* Selected Block Info in Top Ruler */}
-            {selectedBlock && (
-              <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 bg-slate-950 rounded-lg border border-slate-800 text-[11px]">
-                <span className="text-slate-400 font-normal">Active:</span>
-                <span className="font-bold text-cyan-400 truncate max-w-[140px]">{selectedBlock.name}</span>
-                <span className="text-[10px] text-slate-500 font-mono">({selectedIndex + 1}/{blocks.length})</span>
-                {onOpenCodeEditor && (
-                  <button
-                    type="button"
-                    id="canvas-ruler-open-code-editor-btn"
-                    onClick={() => onOpenCodeEditor(selectedBlock.id)}
-                    className="ml-1 px-1.5 py-0.5 rounded bg-cyan-500/15 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/30 font-mono font-bold text-[10px] flex items-center gap-1 transition cursor-pointer"
-                    title="Edit Block HTML & CSS Code"
-                  >
-                    <Code2 className="w-3 h-3" />
-                    <span>HTML/CSS</span>
-                  </button>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* 6 Bootstrap Breakpoints (Mobile-First Cascade: xs -> xxl) */}
-          <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-xl border border-slate-800 overflow-x-auto no-scrollbar">
-            {BREAKPOINT_ORDER.map((bp) => {
-              const Icon = BREAKPOINT_DEVICE_ICONS[bp];
-              const isActive = bp === currentBp;
-              const isLower = BREAKPOINT_ORDER.indexOf(bp) < BREAKPOINT_ORDER.indexOf(currentBp);
-              const isHigher = BREAKPOINT_ORDER.indexOf(bp) > BREAKPOINT_ORDER.indexOf(currentBp);
-
-              return (
-                <button
-                  key={bp}
-                  type="button"
-                  id={`canvas-bp-btn-${bp}`}
-                  onClick={() => onBreakpointChange && onBreakpointChange(bp)}
-                  className={`px-2.5 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
-                    isActive
-                      ? 'bg-blue-600 text-white ring-2 ring-blue-400 shadow-md'
-                      : isLower
-                      ? 'text-amber-300/80 hover:text-amber-200 hover:bg-slate-800/80 border border-amber-500/20'
-                      : 'text-slate-400 hover:text-white hover:bg-slate-800/60 border border-transparent'
-                  }`}
-                  title={`${BREAKPOINT_LABELS[bp].label} (${BREAKPOINT_LABELS[bp].pixelRange}) - Click to preview and target this tier`}
-                >
-                  <Icon className="w-3.5 h-3.5" />
-                  <span className="uppercase">{bp}</span>
-                  <span className="text-[10px] font-normal opacity-75 hidden xl:inline">
-                    {BREAKPOINT_LABELS[bp].desc}
-                  </span>
-                  {isActive && (
-                    <span className="text-[9px] bg-blue-700 text-blue-100 px-1 py-0.2 rounded font-sans font-bold uppercase ml-0.5">
-                      EDITING
-                    </span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* 1B. DIRECT CANVAS BLOCK INSTANCE DRAG-AND-DROP REORDER BAR */}
-      {!isPreviewMode && blocks.length > 0 && (
-        <div
-          id="canvas-block-instances-reorder-bar"
-          className={`w-full px-4 py-1.5 border-b flex items-center gap-2 overflow-x-auto no-scrollbar shrink-0 z-10 select-none transition-colors ${
+          className={`w-full px-3.5 py-1 border-b flex items-center justify-between gap-2 shrink-0 z-20 select-none transition-colors ${
             isDark
               ? 'bg-slate-900/90 border-slate-800/90 text-slate-200'
-              : 'bg-white/90 border-slate-200 text-slate-800 backdrop-blur-xs'
+              : 'bg-white/95 border-slate-200/90 text-slate-800 backdrop-blur-xs'
           }`}
         >
-          <div className="flex items-center gap-1.5 pr-2 border-r border-slate-300 dark:border-slate-800 shrink-0 text-[11px] font-semibold text-slate-500 dark:text-slate-400">
-            <Layers className="w-3.5 h-3.5 text-blue-500" />
-            <span>Canvas Sections</span>
-            <span className="font-mono text-[10px] opacity-75">({blocks.length})</span>
-          </div>
-
+          {/* Left: Draggable Canvas Section Pills */}
           <div
-            className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5"
-            role="list"
-            aria-label="Draggable canvas block instances"
+            id="canvas-block-instances-reorder-bar"
+            className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5 flex-1 min-w-0"
           >
-            {blocks.map((block, index) => {
-              const isSelected = block.id === selectedBlockId;
-              const isDragging = block.id === draggedBlockId;
-              const isDragTarget = block.id === dragOverBlockId;
-              const showDropBefore = isDragTarget && dropPosition === 'before';
-              const showDropAfter = isDragTarget && dropPosition === 'after';
+            <div
+              className="flex items-center gap-1 overflow-x-auto no-scrollbar"
+              role="list"
+              aria-label="Draggable canvas block instances"
+            >
+              {blocks.map((block, index) => {
+                const isSelected = selectedBlockIds.includes(block.id);
+                const isDragging = block.id === draggedBlockId;
+                const isDragTarget = block.id === dragOverBlockId;
+                const showDropBefore = isDragTarget && dropPosition === 'before';
+                const showDropAfter = isDragTarget && dropPosition === 'after';
 
-              return (
-                <div
-                  key={block.id}
-                  role="listitem"
-                  draggable
-                  onDragStart={(e) => handleBlockDragStart(e, block, index)}
-                  onDragOver={(e) => handleBlockDragOver(e, block, index)}
-                  onDragLeave={(e) => handleBlockDragLeave(e, block.id)}
-                  onDrop={(e) => handleBlockDrop(e, block, index)}
-                  onDragEnd={handleBlockDragEnd}
-                  onClick={() => onSelectBlock(block.id)}
-                  onDoubleClick={() => onOpenSettings(block.id)}
-                  title={`Drag handle to reorder "${block.name}" (Position #${index + 1}) • Click to select • Double-click for settings`}
-                  className={`group relative flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium transition-all cursor-pointer shrink-0 border ${
-                    isDragging
-                      ? 'opacity-40 scale-95 border-dashed border-blue-500 bg-blue-500/10'
-                      : isSelected
-                      ? 'bg-blue-600 text-white border-blue-500 shadow-xs'
-                      : isDark
-                      ? 'bg-slate-800/80 hover:bg-slate-800 text-slate-300 border-slate-700/80'
-                      : 'bg-slate-100 hover:bg-slate-200/70 text-slate-700 border-slate-200/90'
-                  } ${showDropBefore ? 'ring-2 ring-blue-500 border-l-4 border-l-blue-500' : ''} ${
-                    showDropAfter ? 'ring-2 ring-blue-500 border-r-4 border-r-blue-500' : ''
-                  }`}
-                >
-                  {/* Visible Drag-Handle Icon */}
-                  <span
-                    className={`inline-flex items-center justify-center p-0.5 rounded cursor-grab active:cursor-grabbing transition-colors ${
-                      isSelected
-                        ? 'text-blue-100 hover:text-white hover:bg-blue-700/60'
-                        : 'text-slate-400 group-hover:text-blue-500 dark:text-slate-500 dark:group-hover:text-blue-400'
-                    }`}
-                    aria-label={`Drag handle for ${block.name}`}
-                  >
-                    <GripVertical className="w-3.5 h-3.5" />
-                  </span>
-
-                  <span
-                    className={`font-mono text-[10px] ${
-                      isSelected ? 'text-blue-200' : 'text-slate-400 dark:text-slate-500'
+                return (
+                  <div
+                    key={block.id}
+                    role="listitem"
+                    draggable
+                    onDragStart={(e) => handleBlockDragStart(e, block, index)}
+                    onDragOver={(e) => handleBlockDragOver(e, block, index)}
+                    onDragLeave={(e) => handleBlockDragLeave(e, block.id)}
+                    onDrop={(e) => handleBlockDrop(e, block, index)}
+                    onDragEnd={handleBlockDragEnd}
+                    onClick={(e) => {
+                      const isMulti = e.shiftKey || e.ctrlKey || e.metaKey || isMultiSelectMode;
+                      onSelectBlock(block.id, isMulti);
+                    }}
+                    onDoubleClick={() => onOpenSettings(block.id)}
+                    title={`Drag to reorder "${block.name}" • Click to select (Shift+Click to multi-select) • Double-click for settings`}
+                    className={`group relative flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-medium transition-all cursor-pointer shrink-0 border ${
+                      isDragging
+                        ? 'opacity-40 scale-95 border-dashed border-blue-500 bg-blue-500/10'
+                        : isSelected
+                        ? 'bg-blue-600 text-white border-blue-500 shadow-2xs'
+                        : isDark
+                        ? 'bg-slate-800/70 hover:bg-slate-800 text-slate-300 border-slate-800'
+                        : 'bg-slate-100/80 hover:bg-slate-200/70 text-slate-700 border-slate-200/80'
+                    } ${showDropBefore ? 'ring-2 ring-blue-500 border-l-4 border-l-blue-500' : ''} ${
+                      showDropAfter ? 'ring-2 ring-blue-500 border-r-4 border-r-blue-500' : ''
                     }`}
                   >
-                    {index + 1}.
-                  </span>
-
-                  <span className="truncate max-w-[120px]">{block.name}</span>
-                </div>
-              );
-            })}
+                    <GripVertical
+                      className={`w-3 h-3 cursor-grab active:cursor-grabbing ${
+                        isSelected ? 'text-blue-200' : 'text-slate-400'
+                      }`}
+                    />
+                    <span className={`font-mono text-[10px] ${isSelected ? 'text-blue-100' : 'text-slate-400'}`}>
+                      {index + 1}.
+                    </span>
+                    <span className="truncate max-w-[105px]">{block.name}</span>
+                  </div>
+                );
+              })}
+            </div>
           </div>
 
-          {draggedBlockId && (
-            <div className="ml-auto hidden xl:flex items-center gap-1.5 text-[11px] font-medium text-blue-500 animate-pulse shrink-0">
-              <GripVertical className="w-3.5 h-3.5" />
-              <span>Drop on any section to reorder</span>
+          {/* Right: Multi-Select Toggle, Grid Overlay Toggle, Breakpoint Switcher & Quick Code Button */}
+          <div className="flex items-center gap-1.5 shrink-0">
+            {/* Multi-Select Mode Toggle Button */}
+            {onToggleMultiSelectMode && (
+              <button
+                type="button"
+                id="btn-toggle-multiselect"
+                onClick={onToggleMultiSelectMode}
+                className={`flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg text-[11px] font-semibold transition cursor-pointer border ${
+                  isMultiSelectMode
+                    ? 'bg-blue-600 text-white border-blue-500 shadow-xs'
+                    : isDark
+                    ? 'text-slate-300 hover:text-white hover:bg-slate-800 border-slate-700/80 bg-slate-900/60'
+                    : 'text-slate-700 hover:text-slate-900 hover:bg-slate-100 border-slate-200 bg-white'
+                }`}
+                title={
+                  isMultiSelectMode
+                    ? 'Multi-Select Mode Active: Click or shift-click blocks to group-select (Click to exit)'
+                    : 'Toggle Multi-Select Mode: Select multiple blocks to move, duplicate, or delete as a group'
+                }
+                aria-label="Toggle canvas multi-select mode"
+              >
+                <CheckSquare
+                  className={`w-3.5 h-3.5 ${
+                    isMultiSelectMode ? 'text-white' : 'text-blue-500'
+                  }`}
+                />
+                <span>Multi-Select</span>
+                {selectedBlockIds.length > 0 && (
+                  <span
+                    className={`text-[9.5px] font-bold px-1.5 py-0.2 rounded-full font-mono ${
+                      isMultiSelectMode
+                        ? 'bg-blue-700 text-white'
+                        : 'bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300'
+                    }`}
+                  >
+                    {selectedBlockIds.length}
+                  </span>
+                )}
+              </button>
+            )}
+
+            {/* Visual Bootstrap 5 12-Column Grid Guidelines Toggle */}
+            <button
+              type="button"
+              id="canvas-grid-overlay-toggle-btn"
+              onClick={() => setIsGridOverlayEnabled((prev) => !prev)}
+              className={`flex items-center gap-1.5 px-2 py-0.5 rounded-lg text-[11px] font-semibold transition cursor-pointer border ${
+                isGridOverlayEnabled
+                  ? isDark
+                    ? 'bg-cyan-500/15 text-cyan-300 border-cyan-500/40 shadow-xs'
+                    : 'bg-blue-50 text-blue-700 border-blue-300 shadow-xs'
+                  : isDark
+                  ? 'text-slate-400 hover:text-slate-200 hover:bg-slate-800 border-slate-800'
+                  : 'text-slate-500 hover:text-slate-800 hover:bg-slate-100 border-slate-200'
+              }`}
+              title={
+                isGridOverlayEnabled
+                  ? '12-Column Grid Guidelines Active: Displays Bootstrap 5 column guides on hover or when dragging elements (Click to turn off)'
+                  : '12-Column Grid Guidelines Disabled (Click to turn on)'
+              }
+              aria-label="Toggle Bootstrap 5 visual grid overlay guidelines"
+            >
+              <Grid3X3
+                className={`w-3.5 h-3.5 ${
+                  isGridOverlayEnabled
+                    ? isDark
+                      ? 'text-cyan-400'
+                      : 'text-blue-600'
+                    : 'text-slate-400'
+                }`}
+              />
+              <span className="hidden md:inline">12-Col Grid</span>
+              <span
+                className={`text-[9.5px] font-bold px-1.5 py-0.2 rounded-full font-mono ${
+                  isGridOverlayEnabled
+                    ? isDark
+                      ? 'bg-cyan-950 text-cyan-300 border border-cyan-800'
+                      : 'bg-blue-100 text-blue-700 border border-blue-200'
+                    : isDark
+                    ? 'bg-slate-800 text-slate-400'
+                    : 'bg-slate-200 text-slate-600'
+                }`}
+              >
+                {isGridOverlayEnabled ? 'ON' : 'OFF'}
+              </span>
+            </button>
+
+            {selectedBlock && onOpenCodeEditor && (
+              <button
+                type="button"
+                id="canvas-ruler-open-code-editor-btn"
+                onClick={() => onOpenCodeEditor(selectedBlock.id)}
+                className={`hidden xl:flex items-center gap-1 px-2 py-0.5 rounded-md font-mono font-semibold text-[10px] border transition cursor-pointer ${
+                  isDark
+                    ? 'bg-slate-950 hover:bg-slate-800 text-cyan-400 border-slate-800'
+                    : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200'
+                }`}
+                title="Edit Block HTML & CSS Code"
+              >
+                <Code2 className="w-3 h-3" />
+                <span>HTML/CSS</span>
+              </button>
+            )}
+
+            {selectedBlock && (onOpenParameters || onOpenSettings) && (
+              <button
+                type="button"
+                id="canvas-ruler-open-parameters-btn"
+                onClick={() =>
+                  onOpenParameters
+                    ? onOpenParameters(selectedBlock.id)
+                    : onOpenSettings(selectedBlock.id)
+                }
+                className={`flex items-center gap-1 px-2.5 py-0.5 rounded-md font-bold text-[10px] border transition cursor-pointer shadow-xs ${
+                  isDark
+                    ? 'bg-gradient-to-r from-blue-600/30 to-cyan-500/20 hover:from-blue-600/40 hover:to-cyan-500/30 text-cyan-300 border-blue-500/40'
+                    : 'bg-gradient-to-r from-blue-50 to-cyan-50 hover:from-blue-100 hover:to-cyan-100 text-blue-700 border-blue-300'
+                }`}
+                title="Open Block Parameters (Gear Settings)"
+              >
+                <Settings className="w-3 h-3 text-blue-500 animate-spin-slow" />
+                <span>Parameters</span>
+              </button>
+            )}
+
+            <div
+              className={`hidden sm:flex items-center gap-0.5 p-0.5 rounded-lg border ${
+                isDark ? 'bg-slate-950 border-slate-800' : 'bg-slate-100 border-slate-200/80'
+              }`}
+            >
+              {BREAKPOINT_ORDER.map((bp) => {
+                const isActive = bp === currentBp;
+                return (
+                  <button
+                    key={bp}
+                    type="button"
+                    id={`canvas-bp-btn-${bp}`}
+                    onClick={() => onBreakpointChange && onBreakpointChange(bp)}
+                    className={`px-1.5 py-0.5 rounded text-[10px] font-mono font-bold uppercase transition cursor-pointer ${
+                      isActive
+                        ? 'bg-blue-600 text-white shadow-2xs'
+                        : isDark
+                        ? 'text-slate-400 hover:text-white'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                    title={`${BREAKPOINT_LABELS[bp].label} (${BREAKPOINT_LABELS[bp].pixelRange})`}
+                  >
+                    {bp}
+                  </button>
+                );
+              })}
             </div>
-          )}
+          </div>
         </div>
       )}
 
@@ -749,28 +922,13 @@ export const CanvasFrame: React.FC<CanvasFrameProps> = ({
         </div>
       )}
 
-      {/* 2. SIMULATED VIEWPORT FRAME WITH ACTIVE BREAKPOINT BADGE & NOTCH */}
+      {/* 2. SIMULATED VIEWPORT FRAME */}
       <div
         id="canvas-viewport-frame-container"
+        onMouseEnter={() => setIsHoveringCanvas(true)}
+        onMouseLeave={() => setIsHoveringCanvas(false)}
         className={`transition-all duration-300 relative flex flex-col ${currentFrameConfig.containerClass}`}
       >
-        {/* On-Frame Active Breakpoint Header Banner (When not full screen preview) */}
-        {!isPreviewMode && currentBp !== 'xxl' && (
-          <div className="bg-slate-900 text-slate-300 px-3 py-1 flex items-center justify-between text-[11px] font-mono border-b border-slate-800 shrink-0 select-none">
-            <div className="flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
-              <span className="font-bold text-white uppercase">{currentBp} Viewport</span>
-              <span className="text-slate-400">({currentFrameConfig.widthLabel})</span>
-            </div>
-
-            <div className="flex items-center gap-2 text-[10px] text-slate-400">
-              <span className="hidden sm:inline">Cascade Tier: <strong>{BREAKPOINT_LABELS[currentBp].label}</strong></span>
-              <span className="text-slate-500">|</span>
-              <span className="text-emerald-400">0px ──────── {currentFrameConfig.targetWidth}px</span>
-            </div>
-          </div>
-        )}
-
         {/* Mobile / Tablet camera pill simulation */}
         {currentFrameConfig.hasBezel && (
           <div className="w-full bg-slate-800 py-1 flex justify-center items-center shrink-0 z-20">
@@ -779,6 +937,75 @@ export const CanvasFrame: React.FC<CanvasFrameProps> = ({
             </div>
           </div>
         )}
+
+        {/* Visual Bootstrap 5 12-Column Responsive Grid Guidelines Overlay (Active on hover or drag) */}
+        <div
+          id="canvas-grid-guidelines-overlay"
+          aria-hidden="true"
+          className={`absolute inset-0 z-20 pointer-events-none transition-opacity duration-200 flex flex-col justify-start items-center ${
+            isGridGuidelinesVisible ? 'opacity-100' : 'opacity-0'
+          }`}
+        >
+          {/* Floating Alignment Status Pill */}
+          <div className="sticky top-2 z-30 pointer-events-none my-1 flex items-center gap-2 px-3 py-1 rounded-full bg-slate-900/90 text-white text-[11px] font-semibold border border-blue-500/40 shadow-lg backdrop-blur-md">
+            <div
+              className={`w-2 h-2 rounded-full ${
+                isDraggingAnyElement ? 'bg-amber-400 animate-ping' : 'bg-cyan-400 animate-pulse'
+              }`}
+            />
+            <span className="font-mono text-cyan-400">Bootstrap 5 (12 Cols)</span>
+            <span className="text-slate-500">•</span>
+            <span className="text-slate-300">
+              Container: <strong className="text-white">{BOOTSTRAP_CONTAINER_MAX_WIDTH[currentBp]}</strong>
+            </span>
+            <span className="text-slate-500">•</span>
+            <span className="text-cyan-300">
+              {isDraggingAnyElement ? 'Dragging Alignment Active' : 'Hover Alignment Active'}
+            </span>
+          </div>
+
+          {/* 12 Columns Guidelines Container */}
+          <div className="w-full h-full px-3 flex-1 flex justify-center pointer-events-none">
+            <div
+              className="w-full h-full transition-all duration-200"
+              style={{
+                maxWidth: currentBp === 'xs' ? '100%' : BOOTSTRAP_CONTAINER_MAX_WIDTH[currentBp],
+              }}
+            >
+              <div className="grid grid-cols-12 gap-3 sm:gap-4 h-full">
+                {Array.from({ length: 12 }).map((_, i) => (
+                  <div
+                    key={i}
+                    className={`h-full flex flex-col justify-between items-center py-2 transition-colors border-x ${
+                      isDark
+                        ? 'bg-cyan-500/[0.04] border-dashed border-cyan-400/25'
+                        : 'bg-blue-500/[0.04] border-dashed border-blue-500/25'
+                    }`}
+                  >
+                    <span
+                      className={`font-mono text-[9px] font-extrabold px-1.5 py-0.5 rounded shadow-2xs ${
+                        isDark
+                          ? 'bg-slate-900/95 text-cyan-300 border border-cyan-500/35'
+                          : 'bg-white/95 text-blue-600 border border-blue-300'
+                      }`}
+                    >
+                      {i + 1}
+                    </span>
+                    <span
+                      className={`font-mono text-[8.5px] font-semibold px-1 py-0.2 rounded opacity-80 ${
+                        isDark
+                          ? 'bg-slate-900/80 text-cyan-400'
+                          : 'bg-white/90 text-blue-700'
+                      }`}
+                    >
+                      col-{i + 1}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
 
         {/* Live Iframe */}
         <iframe
@@ -792,12 +1019,118 @@ export const CanvasFrame: React.FC<CanvasFrameProps> = ({
         />
       </div>
 
-      {/* 3. PERSISTENT NON-INTRUSIVE BOTTOM RESPONSIVE BREAKPOINT HUD */}
+      {/* 3. COMPACT BOTTOM RESPONSIVE CAPSULE */}
       <div
         id="canvas-bottom-breakpoint-hud-wrapper"
-        className="sticky bottom-3.5 z-30 pointer-events-none mt-auto py-1 flex flex-col items-center w-full px-4 select-none"
+        className="sticky bottom-3 z-30 pointer-events-none mt-auto py-1 flex flex-col items-center w-full px-4 select-none"
       >
-        {/* Optional Expanded Cascade Info Card (when toggled via Info button) */}
+        {/* Floating Multi-Select Group Actions HUD */}
+        {(isMultiSelectMode || selectedBlockIds.length > 1) && (
+          <div
+            id="canvas-multiselect-group-actions-bar"
+            className="pointer-events-auto mb-2 bg-slate-900/95 text-white backdrop-blur-md px-3.5 py-1.5 rounded-2xl shadow-2xl border border-blue-500/40 flex items-center gap-2 transition-all duration-200 animate-in fade-in slide-in-from-bottom-2 ring-2 ring-blue-500/30 select-none z-40"
+          >
+            {/* Selected Count Indicator */}
+            <div className="flex items-center gap-1.5 pr-2 border-r border-slate-700/80">
+              <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
+              <span className="text-xs font-bold text-cyan-300 font-mono">
+                {selectedBlockIds.length} {selectedBlockIds.length === 1 ? 'section' : 'sections'} selected
+              </span>
+            </div>
+
+            {/* Select All / Deselect All */}
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                id="btn-multiselect-select-all"
+                onClick={onSelectAllBlocks}
+                className="px-2 py-1 rounded-lg text-[11px] font-semibold text-slate-300 hover:text-white hover:bg-slate-800 transition cursor-pointer"
+                title="Select all sections on canvas"
+              >
+                Select All
+              </button>
+              <button
+                type="button"
+                id="btn-multiselect-deselect-all"
+                onClick={onDeselectAllBlocks}
+                className="px-2 py-1 rounded-lg text-[11px] font-semibold text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition cursor-pointer"
+                title="Deselect all sections"
+              >
+                Clear
+              </button>
+            </div>
+
+            <div className="h-4 w-px bg-slate-700/80" />
+
+            {/* Group Action: Move Up */}
+            <button
+              type="button"
+              id="btn-multiselect-move-up"
+              onClick={() => onMoveSelectedBlocks && onMoveSelectedBlocks('up')}
+              disabled={selectedBlockIds.length === 0}
+              className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 disabled:opacity-40 transition cursor-pointer"
+              title="Move selected sections up as a group"
+            >
+              <ArrowUp className="w-3.5 h-3.5 text-blue-400" />
+              <span>Move Up</span>
+            </button>
+
+            {/* Group Action: Move Down */}
+            <button
+              type="button"
+              id="btn-multiselect-move-down"
+              onClick={() => onMoveSelectedBlocks && onMoveSelectedBlocks('down')}
+              disabled={selectedBlockIds.length === 0}
+              className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 disabled:opacity-40 transition cursor-pointer"
+              title="Move selected sections down as a group"
+            >
+              <ArrowDown className="w-3.5 h-3.5 text-blue-400" />
+              <span>Move Down</span>
+            </button>
+
+            <div className="h-4 w-px bg-slate-700/80" />
+
+            {/* Group Action: Duplicate Group */}
+            <button
+              type="button"
+              id="btn-multiselect-duplicate"
+              onClick={onDuplicateSelectedBlocks}
+              disabled={selectedBlockIds.length === 0}
+              className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-purple-300 border border-purple-500/30 disabled:opacity-40 transition cursor-pointer"
+              title="Duplicate selected sections as a group"
+            >
+              <CopyPlus className="w-3.5 h-3.5 text-purple-400" />
+              <span>Duplicate</span>
+            </button>
+
+            {/* Group Action: Delete Group */}
+            <button
+              type="button"
+              id="btn-multiselect-delete"
+              onClick={onDeleteSelectedBlocks}
+              disabled={selectedBlockIds.length === 0}
+              className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/40 disabled:opacity-40 transition cursor-pointer"
+              title="Delete selected sections as a group"
+            >
+              <Trash2 className="w-3.5 h-3.5 text-rose-400" />
+              <span>Delete</span>
+            </button>
+
+            {/* Close / Exit Multi-Select Mode */}
+            {onToggleMultiSelectMode && (
+              <button
+                type="button"
+                id="btn-multiselect-exit"
+                onClick={onToggleMultiSelectMode}
+                className="ml-1 p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer"
+                title="Exit Multi-Select mode (Esc)"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+        )}
+
         {showCascadeInfo && (
           <div
             id="canvas-breakpoint-cascade-flyout"
@@ -820,14 +1153,14 @@ export const CanvasFrame: React.FC<CanvasFrameProps> = ({
 
             <div className="mt-2.5 space-y-2">
               <p className="text-slate-400 text-[11px] leading-relaxed">
-                Bootstrap cascades styles upward from <strong className="text-blue-400 font-mono">xs</strong> to <strong className="text-purple-400 font-mono">xxl</strong>. Rules defined on smaller breakpoints apply across all larger screens automatically unless overridden.
+                Bootstrap cascades styles upward from <strong className="text-blue-400 font-mono">xs</strong> to <strong className="text-purple-400 font-mono">xxl</strong>.
               </p>
 
               <div className="grid grid-cols-2 gap-2 text-[11px] font-mono pt-1">
                 <div className="bg-slate-950/80 p-2 rounded-lg border border-slate-800">
                   <div className="text-slate-400 text-[10px] uppercase">Active Tier Infix</div>
                   <div className="font-bold text-emerald-400">
-                    {currentBp === 'xs' ? 'none (e.g. .col-6)' : `-${currentBp}- (e.g. .col-${currentBp}-6)`}
+                    {currentBp === 'xs' ? 'none (base)' : `-${currentBp}-`}
                   </div>
                 </div>
                 <div className="bg-slate-950/80 p-2 rounded-lg border border-slate-800">
@@ -836,136 +1169,82 @@ export const CanvasFrame: React.FC<CanvasFrameProps> = ({
                     {BOOTSTRAP_CONTAINER_MAX_WIDTH[currentBp]}
                   </div>
                 </div>
-                <div className="bg-slate-950/80 p-2 rounded-lg border border-slate-800">
-                  <div className="text-slate-400 text-[10px] uppercase">Media Query</div>
-                  <div className="font-bold text-sky-300">
-                    {currentBp === 'xs' ? '< 576px (Base)' : `@media (min-width: ${BREAKPOINT_QUERY_MAP[currentBp]}px)`}
-                  </div>
-                </div>
-                <div className="bg-slate-950/80 p-2 rounded-lg border border-slate-800">
-                  <div className="text-slate-400 text-[10px] uppercase">Simulated Width</div>
-                  <div className="font-bold text-slate-200">
-                    {currentFrameConfig.widthLabel}
-                  </div>
-                </div>
               </div>
             </div>
           </div>
         )}
 
-        {/* The Main HUD Pill */}
+        {/* Compact Bottom HUD Pill */}
         <div
           id="canvas-bottom-breakpoint-hud"
-          className="pointer-events-auto bg-slate-950/90 text-white backdrop-blur-md px-3.5 py-1.5 rounded-full shadow-2xl border border-slate-700/80 ring-1 ring-white/10 flex items-center gap-2 sm:gap-3 transition-all duration-200 hover:border-slate-600"
+          className="pointer-events-auto bg-slate-950/90 text-white backdrop-blur-md px-2.5 py-1 rounded-full shadow-xl border border-slate-800 flex items-center gap-1.5 transition-all duration-200"
         >
-          {/* Active Responsive Tier Indicator & Pulsing Status */}
-          <div className="flex items-center gap-2 pr-1.5 border-r border-slate-800 shrink-0">
-            <span className="relative flex h-2 w-2">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-            </span>
-            <div className="flex items-center gap-1.5 text-xs font-semibold">
-              <span className="text-slate-400 text-[11px] font-normal hidden sm:inline">Tier:</span>
-              <span className="px-1.5 py-0.5 rounded bg-blue-600 text-white font-mono font-bold text-[11px] uppercase tracking-wide">
-                {currentBp}
-              </span>
-              <span className="text-slate-300 text-[11px] font-medium hidden md:inline">
-                {BREAKPOINT_LABELS[currentBp].label.replace(/ \(.+\)/, '')}
-              </span>
-            </div>
-          </div>
-
-          {/* 6 Visual Breakpoint Badges ('xs' to 'xxl') */}
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-0.5">
             {BREAKPOINT_ORDER.map((bp) => {
-              const Icon = BREAKPOINT_DEVICE_ICONS[bp];
               const isActive = bp === currentBp;
-              const isLower = BREAKPOINT_ORDER.indexOf(bp) < BREAKPOINT_ORDER.indexOf(currentBp);
-
               return (
                 <button
                   key={bp}
                   type="button"
                   id={`canvas-bottom-bp-badge-${bp}`}
                   onClick={() => onBreakpointChange && onBreakpointChange(bp)}
-                  className={`relative px-2 sm:px-2.5 py-1 rounded-full text-xs font-mono font-bold transition-all duration-150 flex items-center gap-1 cursor-pointer select-none ${
+                  className={`px-2 py-0.5 rounded-full text-[11px] font-mono font-bold uppercase transition cursor-pointer ${
                     isActive
-                      ? 'bg-blue-600 text-white shadow-md shadow-blue-500/40 ring-2 ring-blue-400 scale-105'
-                      : isLower
-                      ? 'bg-slate-900/90 text-amber-300/80 hover:text-amber-200 hover:bg-slate-800 border border-amber-500/20'
-                      : 'bg-slate-900/60 text-slate-400 hover:text-white hover:bg-slate-800 border border-slate-800/80'
+                      ? 'bg-blue-600 text-white'
+                      : 'text-slate-400 hover:text-white hover:bg-slate-800'
                   }`}
-                  title={`${BREAKPOINT_LABELS[bp].label} (${BREAKPOINT_LABELS[bp].pixelRange})\nInfix: ${bp === 'xs' ? 'none (base)' : `-${bp}-`}\nClick to target this responsive tier`}
+                  title={`${BREAKPOINT_LABELS[bp].label} (${BREAKPOINT_LABELS[bp].pixelRange})`}
                 >
-                  <Icon className="w-3 h-3 shrink-0" />
-                  <span className="uppercase">{bp}</span>
-                  {isActive && (
-                    <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse hidden sm:inline-block" />
-                  )}
+                  {bp}
                 </button>
               );
             })}
           </div>
 
-          {/* Right Section: Specs & Info Toggle */}
-          <div className="hidden lg:flex items-center gap-2 pl-1.5 border-l border-slate-800 text-[11px] font-mono text-slate-400 shrink-0">
-            <span>
-              Width: <strong className="text-emerald-400">{currentFrameConfig.widthLabel}</strong>
-            </span>
-            <span className="text-slate-600">•</span>
-            <span>
-              Container: <strong className="text-slate-200">{BOOTSTRAP_CONTAINER_MAX_WIDTH[currentBp]}</strong>
-            </span>
-          </div>
+          <span className="hidden md:inline text-[10px] font-mono text-slate-400 pl-1 border-l border-slate-800">
+            {currentFrameConfig.widthLabel}
+          </span>
 
-          {/* Toggle Cascade Info */}
+          <button
+            type="button"
+            id="canvas-bottom-grid-toggle-btn"
+            onClick={() => setIsGridOverlayEnabled((prev) => !prev)}
+            className={`p-1 rounded-full transition cursor-pointer ${
+              isGridOverlayEnabled ? 'bg-cyan-500 text-slate-950 font-bold' : 'text-slate-400 hover:text-white'
+            }`}
+            title={`Bootstrap 5 12-Column Grid Guidelines (${
+              isGridOverlayEnabled ? 'Enabled: Active on hover/drag' : 'Disabled'
+            })`}
+            aria-label="Toggle Bootstrap 5 visual grid overlay guidelines"
+          >
+            <Grid3X3 className="w-3 h-3" />
+          </button>
+
           <button
             type="button"
             onClick={() => setShowCascadeInfo((prev) => !prev)}
-            className={`p-1 rounded-full transition cursor-pointer shrink-0 ${
-              showCascadeInfo
-                ? 'bg-blue-600 text-white'
-                : 'text-slate-400 hover:text-white hover:bg-slate-800'
+            className={`p-1 rounded-full transition cursor-pointer ${
+              showCascadeInfo ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white'
             }`}
-            title="Toggle Bootstrap Responsive Cascade Information"
+            title="Responsive Cascade Info"
           >
-            <Info className="w-3.5 h-3.5" />
+            <Info className="w-3 h-3" />
           </button>
 
-          {/* Quick Full-Screen Live Preview Launcher */}
-          {onOpenLivePreview && (
-            <button
-              type="button"
-              onClick={onOpenLivePreview}
-              className="p-1 rounded-full text-emerald-400 hover:text-emerald-300 hover:bg-emerald-950/60 transition cursor-pointer shrink-0"
-              title="Open Full-Screen Live Preview Modal (Shift+P)"
-            >
-              <Play className="w-3.5 h-3.5 fill-current" />
-            </button>
-          )}
-
-          {/* Quick Clipboard Manager Launcher */}
           {onOpenClipboard && (
             <button
               type="button"
               id="canvas-bottom-clipboard-btn"
               onClick={onOpenClipboard}
-              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold transition cursor-pointer shrink-0 ${
+              className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold transition cursor-pointer ${
                 clipboardCount > 0
-                  ? 'bg-blue-600 hover:bg-blue-500 text-white shadow-xs'
+                  ? 'bg-blue-600 text-white'
                   : 'text-slate-400 hover:text-white hover:bg-slate-800'
               }`}
-              title={`Clipboard Manager (Shift+Ctrl+V) - ${clipboardCount} copied ${
-                clipboardCount === 1 ? 'block' : 'blocks'
-              }`}
+              title="Clipboard Manager"
             >
-              <ClipboardList className="w-3.5 h-3.5 text-blue-300" />
-              <span className="hidden sm:inline">Clipboard</span>
-              {clipboardCount > 0 && (
-                <span className="px-1.5 py-0.2 text-[10px] font-mono font-bold rounded-full bg-white/20">
-                  {clipboardCount}
-                </span>
-              )}
+              <ClipboardList className="w-3 h-3" />
+              {clipboardCount > 0 && <span className="font-mono text-[10px]">{clipboardCount}</span>}
             </button>
           )}
         </div>
