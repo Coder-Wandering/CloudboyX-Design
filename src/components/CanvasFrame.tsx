@@ -69,6 +69,7 @@ interface CanvasFrameProps {
   onInlineTextChange: (blockId: string, field: string, value: string) => void;
   onOpenLibrary: () => void;
   onAddBlock: (blockType: string) => void;
+  onAddSectionAtIndex?: (index: number) => void;
   isPreviewMode: boolean;
   isDesignModeOpen?: boolean;
   themeMode?: 'light' | 'dark';
@@ -177,6 +178,7 @@ export const CanvasFrame: React.FC<CanvasFrameProps> = ({
   onInlineTextChange,
   onOpenLibrary,
   onAddBlock,
+  onAddSectionAtIndex,
   isPreviewMode,
   isDesignModeOpen = false,
   themeMode,
@@ -470,6 +472,15 @@ export const CanvasFrame: React.FC<CanvasFrameProps> = ({
         onDelete(e.data.blockId);
       }
 
+      if (e.data.type === 'ADD_SECTION_AT_INDEX') {
+        const targetIndex = typeof e.data.insertIndex === 'number' ? e.data.insertIndex : blocks.length;
+        if (onAddSectionAtIndex) {
+          onAddSectionAtIndex(targetIndex);
+        } else if (onOpenLibrary) {
+          onOpenLibrary();
+        }
+      }
+
       if (e.data.type === 'BLOCK_DRAG_START') {
         setDraggedBlockId(e.data.blockId || null);
         setDraggedBlockIndex(typeof e.data.index === 'number' ? e.data.index : null);
@@ -537,6 +548,8 @@ export const CanvasFrame: React.FC<CanvasFrameProps> = ({
     onOpenSettings,
     onDuplicate,
     onDelete,
+    onAddSectionAtIndex,
+    onOpenLibrary,
     onInlineTextChange,
     selectedBlockId,
     onCopyBlock,
@@ -1257,15 +1270,19 @@ export const CanvasFrame: React.FC<CanvasFrameProps> = ({
         </div>
       )}
 
-      {/* CloudboyX Signature Floating "+" Action Button */}
+      {/* Mobirise-Style Signature Floating "+" Action Button (FAB) */}
       {!isPreviewMode && !isDesignModeOpen && (
         <button
+          type="button"
+          id="mobirise-canvas-add-block-fab"
           onClick={onOpenLibrary}
-          className="fixed bottom-6 right-6 z-20 bg-blue-600 hover:bg-blue-700 text-white p-4 rounded-full shadow-2xl hover:shadow-blue-500/30 hover:scale-105 active:scale-95 transition flex items-center justify-center group"
-          title="Open Component Library"
+          className="fixed bottom-7 right-7 z-40 bg-gradient-to-tr from-rose-500 via-red-500 to-pink-500 hover:from-rose-600 hover:via-red-600 hover:to-pink-600 text-white h-13 pl-4 pr-5 rounded-full shadow-2xl shadow-rose-500/40 hover:shadow-rose-500/60 ring-4 ring-white/20 hover:scale-105 active:scale-95 transition-all duration-200 flex items-center justify-center gap-2 group cursor-pointer"
+          title="Add New Block Component (Visual Library)"
         >
-          <Plus className="w-6 h-6 stroke-[2.5]" />
-          <span className="max-w-0 overflow-hidden whitespace-nowrap group-hover:max-w-xs transition-all duration-200 ease-out group-hover:ml-2 text-xs font-bold">
+          <span className="w-7 h-7 rounded-full bg-white/20 flex items-center justify-center shrink-0 group-hover:rotate-90 transition-transform duration-300">
+            <Plus className="w-4.5 h-4.5 stroke-[3] text-white" />
+          </span>
+          <span className="font-extrabold text-xs tracking-wider uppercase select-none drop-shadow-xs">
             Add Block
           </span>
         </button>

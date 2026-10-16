@@ -270,10 +270,13 @@ export default function App() {
     );
   }, [blocks, pushHistory]);
 
-  // Embedded Design Mode Sidebar State (Right / Left Dockable)
-  const [isDesignModeOpen, setIsDesignModeOpen] = useState(true);
+  // Embedded Design Mode Sidebar State (Right / Left Dockable - Full-Width Canvas by default)
+  const [isDesignModeOpen, setIsDesignModeOpen] = useState(false);
   const [designActiveTab, setDesignActiveTab] = useState<DesignSidebarTab>('blocks');
   const [designDockSide, setDesignDockSide] = useState<'right' | 'left'>('right');
+
+  // Target index for "+ Add Section Here" divider inserters
+  const [targetInsertIndex, setTargetInsertIndex] = useState<number | null>(null);
 
   // Mobirise-Style On-Canvas Block Parameters Flyout Panel state
   const [isBlockParametersOpen, setIsBlockParametersOpen] = useState(false);
@@ -474,6 +477,16 @@ export default function App() {
     },
     []
   );
+
+  const handleAddSectionAtIndex = useCallback((index: number) => {
+    setTargetInsertIndex(index);
+    setDesignActiveTab('blocks');
+    setIsDesignModeOpen(true);
+    showToast({
+      title: 'Add Section Here',
+      description: `Choose a component from the library to insert at slot #${index + 1}.`,
+    });
+  }, [showToast]);
 
   // Restore shared project from URL hash if present
   useEffect(() => {
@@ -1053,6 +1066,18 @@ export default function App() {
     pushHistory(blocks);
     const newBlock = createNewBlock(type);
 
+    if (typeof targetInsertIndex === 'number') {
+      const updated = [...blocks];
+      const clamped = Math.max(0, Math.min(targetInsertIndex, updated.length));
+      updated.splice(clamped, 0, newBlock);
+      setBlocks(updated);
+      setSelectedBlockId(newBlock.id);
+      setSelectedBlockIds([newBlock.id]);
+      triggerBlockAnimation(newBlock.id, 'added');
+      setTargetInsertIndex(null);
+      return;
+    }
+
     if (selectedBlockId) {
       const idx = blocks.findIndex((b) => b.id === selectedBlockId);
       if (idx !== -1) {
@@ -1060,6 +1085,7 @@ export default function App() {
         updated.splice(idx + 1, 0, newBlock);
         setBlocks(updated);
         setSelectedBlockId(newBlock.id);
+        setSelectedBlockIds([newBlock.id]);
         triggerBlockAnimation(newBlock.id, 'added');
         return;
       }
@@ -1067,6 +1093,7 @@ export default function App() {
 
     setBlocks([...blocks, newBlock]);
     setSelectedBlockId(newBlock.id);
+    setSelectedBlockIds([newBlock.id]);
     triggerBlockAnimation(newBlock.id, 'added');
   };
 
@@ -1481,10 +1508,12 @@ export default function App() {
           clipboardCount={clipboardHistory.length}
           onInlineTextChange={handleInlineTextChange}
           onOpenLibrary={() => {
+            setTargetInsertIndex(null);
             setDesignActiveTab('blocks');
             setIsDesignModeOpen(true);
           }}
           onAddBlock={handleAddBlock}
+          onAddSectionAtIndex={handleAddSectionAtIndex}
           isPreviewMode={isPreviewMode}
           isDesignModeOpen={isDesignModeOpen}
           themeMode={themeMode}
@@ -1510,6 +1539,8 @@ export default function App() {
             selectedBlockId={selectedBlockId}
             onSelectBlock={setSelectedBlockId}
             onAddBlock={handleAddBlock}
+            targetInsertIndex={targetInsertIndex}
+            onClearTargetInsertIndex={() => setTargetInsertIndex(null)}
             onUpdateSettings={handleUpdateSettings}
             onUpdateContent={handleUpdateContent}
             onUpdateVisualNode={handleUpdateVisualNode}

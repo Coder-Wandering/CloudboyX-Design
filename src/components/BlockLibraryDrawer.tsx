@@ -45,6 +45,7 @@ interface BlockLibraryDrawerProps {
   hideSearchBar?: boolean;
   hideCategoryTabs?: boolean;
   hideTagsBar?: boolean;
+  hideHeader?: boolean;
   selectedCategory?: 'all' | BlockCategory;
   onSelectCategory?: (category: 'all' | BlockCategory) => void;
 }
@@ -80,6 +81,7 @@ export const BlockLibraryDrawer: React.FC<BlockLibraryDrawerProps> = ({
   hideSearchBar = false,
   hideCategoryTabs = false,
   hideTagsBar = false,
+  hideHeader = false,
   selectedCategory,
   onSelectCategory,
 }) => {
@@ -132,21 +134,24 @@ export const BlockLibraryDrawer: React.FC<BlockLibraryDrawerProps> = ({
   // Filtered blocks based on search and category
   const filteredBlocks = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
+    const terms = query.split(/\s+/).filter(Boolean);
 
     return BLOCK_DEFINITIONS.filter((block) => {
       const catDef = CATEGORIES.find((c) => c.id === block.category);
       const catLabel = catDef ? catDef.label.toLowerCase() : '';
 
-      // Match against name, type, category, friendly label, description, and tags
-      const nameMatch = block.name.toLowerCase().includes(query);
-      const typeMatch = block.type.toLowerCase().includes(query);
-      const catIdMatch = block.category.toLowerCase().includes(query);
-      const catLabelMatch = catLabel.includes(query);
-      const catMatch = catIdMatch || catLabelMatch;
-      const descMatch = block.description.toLowerCase().includes(query);
-      const tagMatch = block.tags?.some((tag) => tag.toLowerCase().includes(query));
-
-      const queryMatches = !query || nameMatch || typeMatch || catMatch || descMatch || tagMatch;
+      const queryMatches =
+        terms.length === 0 ||
+        terms.every((term) => {
+          const nameMatch = block.name.toLowerCase().includes(term);
+          const typeMatch = block.type.toLowerCase().includes(term);
+          const catIdMatch = block.category.toLowerCase().includes(term);
+          const catLabelMatch = catLabel.includes(term);
+          const catMatch = catIdMatch || catLabelMatch;
+          const descMatch = block.description.toLowerCase().includes(term);
+          const tagMatch = block.tags?.some((tag) => tag.toLowerCase().includes(term));
+          return nameMatch || typeMatch || catMatch || descMatch || tagMatch;
+        });
 
       const matchesCategory = activeCategory === 'all' || block.category === activeCategory;
 
@@ -198,48 +203,111 @@ export const BlockLibraryDrawer: React.FC<BlockLibraryDrawerProps> = ({
       }`}
     >
       {/* Header */}
-      <div
-        className={`p-3.5 border-b flex items-center justify-between ${
-          isDark ? 'bg-slate-900/90 border-slate-800' : 'bg-slate-50/70 border-slate-200'
-        }`}
-      >
-        <div>
-          <h2
-            className={`text-sm font-bold flex items-center gap-2 ${
-              isDark ? 'text-slate-100' : 'text-slate-900'
-            }`}
-          >
-            <span
-              className={`p-1 rounded-lg ${
-                isDark
-                  ? 'bg-cyan-950 text-cyan-400 border border-cyan-800/60'
-                  : 'bg-blue-100 text-blue-600'
+      {!hideHeader ? (
+        <div
+          className={`p-3.5 border-b flex items-center justify-between ${
+            isDark ? 'bg-slate-900/90 border-slate-800' : 'bg-slate-50/70 border-slate-200'
+          }`}
+        >
+          <div>
+            <h2
+              className={`text-sm font-bold flex items-center gap-2 ${
+                isDark ? 'text-slate-100' : 'text-slate-900'
               }`}
             >
-              <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
-            </span>
-            <span>Component Library</span>
-            <span
-              className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${
-                isDark ? 'bg-slate-800 text-slate-300' : 'bg-slate-200/80 text-slate-700'
+              <span
+                className={`p-1 rounded-lg ${
+                  isDark
+                    ? 'bg-cyan-950 text-cyan-400 border border-cyan-800/60'
+                    : 'bg-blue-100 text-blue-600'
+                }`}
+              >
+                <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
+              </span>
+              <span>Component Library</span>
+              <span
+                className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${
+                  isDark ? 'bg-slate-800 text-slate-300' : 'bg-slate-200/80 text-slate-700'
+                }`}
+              >
+                {filteredBlocks.length} of {BLOCK_DEFINITIONS.length} Blocks
+              </span>
+            </h2>
+            <p
+              className={`text-[11px] mt-0.5 ${
+                isDark ? 'text-slate-400' : 'text-slate-500'
               }`}
             >
-              {filteredBlocks.length} of {BLOCK_DEFINITIONS.length} Blocks
-            </span>
-          </h2>
-          <p
-            className={`text-[11px] mt-0.5 ${
-              isDark ? 'text-slate-400' : 'text-slate-500'
-            }`}
-          >
-            {activeCategory === 'all'
-              ? 'Showing all block categories'
-              : `Category: ${CATEGORIES.find((c) => c.id === activeCategory)?.label || activeCategory}`}
-          </p>
-        </div>
+              {activeCategory === 'all'
+                ? 'Showing all block categories'
+                : `Category: ${CATEGORIES.find((c) => c.id === activeCategory)?.label || activeCategory}`}
+            </p>
+          </div>
 
-        <div className="flex items-center gap-1.5">
-          {/* View Mode Toggle */}
+          <div className="flex items-center gap-1.5">
+            {/* View Mode Toggle */}
+            <div
+              className={`flex items-center p-0.5 rounded-lg border ${
+                isDark ? 'bg-slate-800/90 border-slate-700' : 'bg-slate-200/80 border-slate-300/60'
+              }`}
+            >
+              <button
+                type="button"
+                onClick={() => setViewMode('visual')}
+                title="Visual card view with thumbnails"
+                className={`p-1.5 rounded-md transition ${
+                  viewMode === 'visual'
+                    ? isDark
+                      ? 'bg-slate-900 text-cyan-400 shadow-xs'
+                      : 'bg-white text-blue-600 shadow-xs'
+                    : isDark
+                    ? 'text-slate-400 hover:text-slate-200'
+                    : 'text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                <Grid3X3 className="w-4 h-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode('compact')}
+                title="Compact list view with thumbnails"
+                className={`p-1.5 rounded-md transition ${
+                  viewMode === 'compact'
+                    ? isDark
+                      ? 'bg-slate-900 text-cyan-400 shadow-xs'
+                      : 'bg-white text-blue-600 shadow-xs'
+                    : isDark
+                    ? 'text-slate-400 hover:text-slate-200'
+                    : 'text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                <List className="w-4 h-4" />
+              </button>
+            </div>
+
+            {!isEmbedded && (
+              <button
+                onClick={onClose}
+                className={`p-1.5 rounded-lg transition ml-1 ${
+                  isDark
+                    ? 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+                    : 'text-slate-400 hover:text-slate-700 hover:bg-slate-200'
+                }`}
+              >
+                <X className="w-5 h-5" />
+              </button>
+            )}
+          </div>
+        </div>
+      ) : (
+        <div
+          className={`px-3 py-1.5 border-b flex items-center justify-between text-[11px] ${
+            isDark ? 'bg-slate-900/60 border-slate-800 text-slate-400' : 'bg-slate-50 border-slate-200 text-slate-600'
+          }`}
+        >
+          <span className="font-semibold text-[11px]">
+            {filteredBlocks.length} {filteredBlocks.length === 1 ? 'component' : 'components'}
+          </span>
           <div
             className={`flex items-center p-0.5 rounded-lg border ${
               isDark ? 'bg-slate-800/90 border-slate-700' : 'bg-slate-200/80 border-slate-300/60'
@@ -248,51 +316,36 @@ export const BlockLibraryDrawer: React.FC<BlockLibraryDrawerProps> = ({
             <button
               type="button"
               onClick={() => setViewMode('visual')}
-              title="Visual card view with thumbnails"
-              className={`p-1.5 rounded-md transition ${
+              title="Visual cards"
+              className={`px-2 py-0.5 rounded text-[10px] font-medium transition flex items-center gap-1 ${
                 viewMode === 'visual'
                   ? isDark
-                    ? 'bg-slate-900 text-cyan-400 shadow-xs'
-                    : 'bg-white text-blue-600 shadow-xs'
-                  : isDark
-                  ? 'text-slate-400 hover:text-slate-200'
-                  : 'text-slate-500 hover:text-slate-800'
+                    ? 'bg-slate-900 text-cyan-400 font-bold shadow-xs'
+                    : 'bg-white text-blue-600 font-bold shadow-xs'
+                  : 'text-slate-400 hover:text-slate-200'
               }`}
             >
-              <Grid3X3 className="w-4 h-4" />
+              <Grid3X3 className="w-3 h-3" />
+              <span>Cards</span>
             </button>
             <button
               type="button"
               onClick={() => setViewMode('compact')}
-              title="Compact list view with thumbnails"
-              className={`p-1.5 rounded-md transition ${
+              title="Compact list"
+              className={`px-2 py-0.5 rounded text-[10px] font-medium transition flex items-center gap-1 ${
                 viewMode === 'compact'
                   ? isDark
-                    ? 'bg-slate-900 text-cyan-400 shadow-xs'
-                    : 'bg-white text-blue-600 shadow-xs'
-                  : isDark
-                  ? 'text-slate-400 hover:text-slate-200'
-                  : 'text-slate-500 hover:text-slate-800'
+                    ? 'bg-slate-900 text-cyan-400 font-bold shadow-xs'
+                    : 'bg-white text-blue-600 font-bold shadow-xs'
+                  : 'text-slate-400 hover:text-slate-200'
               }`}
             >
-              <List className="w-4 h-4" />
+              <List className="w-3 h-3" />
+              <span>List</span>
             </button>
           </div>
-
-          {!isEmbedded && (
-            <button
-              onClick={onClose}
-              className={`p-1.5 rounded-lg transition ml-1 ${
-                isDark
-                  ? 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
-                  : 'text-slate-400 hover:text-slate-700 hover:bg-slate-200'
-              }`}
-            >
-              <X className="w-5 h-5" />
-            </button>
-          )}
         </div>
-      </div>
+      )}
 
       {/* Global Search Bar (shown when not hidden by parent sidebar) */}
       {!hideSearchBar && (

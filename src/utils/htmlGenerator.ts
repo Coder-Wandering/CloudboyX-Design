@@ -40,7 +40,7 @@ export function generateCompleteHtml(
     seoSettings?.faviconUrl?.trim() ||
     'https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/icons/bootstrap-fill.svg';
 
-  const renderedBlocksHtml = blocks
+  const rawBlocksHtmlList = blocks
     .map((block, index) => {
       const def = BLOCK_DEFINITIONS.find((b) => b.type === block.type);
       if (!def) return `<!-- Unknown block type: ${block.type} -->`;
@@ -138,8 +138,47 @@ export function generateCompleteHtml(
       }
 
       return html;
-    })
-    .join('\n\n');
+    });
+
+  let blocksHtml = '';
+  if (isEditor) {
+    const parts: string[] = [];
+    if (blocks.length > 0) {
+      parts.push(`
+      <div class="studio-block-divider-inserter studio-block-divider-top" data-insert-index="0" contenteditable="false">
+        <div class="studio-block-divider-line"></div>
+        <button type="button" class="studio-block-divider-btn" data-insert-index="0" title="Add Section at Top (Slot #1)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="12" y1="5" x2="12" y2="19"></line>
+            <line x1="5" y1="12" x2="19" y2="12"></line>
+          </svg>
+          <span>+ Add Section Here</span>
+        </button>
+        <div class="studio-block-divider-line"></div>
+      </div>
+      `);
+    }
+
+    rawBlocksHtmlList.forEach((blockHtml, index) => {
+      parts.push(blockHtml);
+      parts.push(`
+      <div class="studio-block-divider-inserter" data-insert-index="${index + 1}" contenteditable="false">
+        <div class="studio-block-divider-line"></div>
+        <button type="button" class="studio-block-divider-btn" data-insert-index="${index + 1}" title="Add Section Here (Slot #${index + 2})">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="12" y1="5" x2="12" y2="19"></line>
+            <line x1="5" y1="12" x2="19" y2="12"></line>
+          </svg>
+          <span>+ Add Section Here</span>
+        </button>
+        <div class="studio-block-divider-line"></div>
+      </div>
+      `);
+    });
+    blocksHtml = parts.join('\n\n');
+  } else {
+    blocksHtml = rawBlocksHtmlList.join('\n\n');
+  }
 
   const editorStyles = isEditor
     ? `
@@ -471,6 +510,86 @@ export function generateCompleteHtml(
     [contenteditable="true"]:focus {
       background-color: rgba(13, 110, 253, 0.12);
       outline: 2px solid #0d6efd;
+    }
+
+    /* Mobirise-Style "+ Add Section Here" Divider Inserters between canvas blocks */
+    .studio-block-divider-inserter {
+      position: relative;
+      height: 28px;
+      margin: -14px 0;
+      z-index: 1042;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0;
+      transition: opacity 0.2s cubic-bezier(0.16, 1, 0.3, 1), transform 0.2s ease, height 0.2s ease, margin 0.2s ease;
+      cursor: pointer;
+      user-select: none;
+      pointer-events: auto;
+    }
+    .studio-block-divider-inserter:hover {
+      opacity: 1;
+      height: 38px;
+      margin: -19px 0;
+      transform: scale(1.01);
+    }
+    .studio-block-divider-top {
+      margin-top: 6px;
+      margin-bottom: -14px;
+    }
+    .studio-block-divider-top:hover {
+      margin-top: 10px;
+      margin-bottom: -14px;
+    }
+    .studio-block-divider-line {
+      flex: 1;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, rgba(59, 130, 246, 0.45) 20%, #2563eb 50%, rgba(59, 130, 246, 0.45) 80%, transparent);
+      pointer-events: none;
+    }
+    .studio-block-divider-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 16px;
+      border-radius: 9999px;
+      background: linear-gradient(135deg, #0d6efd 0%, #00b4d8 100%);
+      color: #ffffff;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-size: 11px;
+      font-weight: 700;
+      border: 1px solid rgba(255, 255, 255, 0.4);
+      box-shadow: 0 4px 14px rgba(13, 110, 253, 0.45), 0 2px 6px rgba(0, 0, 0, 0.2);
+      cursor: pointer;
+      letter-spacing: 0.02em;
+      transition: all 0.15s ease;
+      white-space: nowrap;
+    }
+    .studio-block-divider-btn:hover {
+      background: linear-gradient(135deg, #1d4ed8 0%, #0284c7 100%);
+      transform: scale(1.05);
+      box-shadow: 0 6px 20px rgba(13, 110, 253, 0.65);
+    }
+    .studio-block-divider-btn svg {
+      width: 13px;
+      height: 13px;
+      stroke-width: 2.8;
+      flex-shrink: 0;
+    }
+    [data-bs-theme="dark"] .studio-block-divider-line {
+      background: linear-gradient(90deg, transparent, rgba(0, 229, 209, 0.35) 20%, #00E5D1 50%, rgba(0, 229, 209, 0.35) 80%, transparent);
+    }
+    [data-bs-theme="dark"] .studio-block-divider-btn {
+      background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+      color: #00E5D1;
+      border-color: rgba(0, 229, 209, 0.5);
+      box-shadow: 0 4px 14px rgba(0, 229, 209, 0.25), 0 2px 6px rgba(0, 0, 0, 0.4);
+    }
+    [data-bs-theme="dark"] .studio-block-divider-btn:hover {
+      background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+      color: #38bdf8;
+      border-color: #38bdf8;
+      box-shadow: 0 6px 20px rgba(56, 189, 248, 0.4);
     }
 
     /* CSS Entry Animations for Added and Moved Blocks */
@@ -1127,6 +1246,20 @@ export function generateCompleteHtml(
             }
           }
 
+          // Check if clicking a divider inserter
+          var dividerEl = e.target.closest('.studio-block-divider-inserter, .studio-block-divider-btn');
+          if (dividerEl) {
+            e.preventDefault();
+            e.stopPropagation();
+            var targetIdxAttr = dividerEl.getAttribute('data-insert-index');
+            var targetIdx = targetIdxAttr !== null ? parseInt(targetIdxAttr, 10) : 0;
+            window.parent.postMessage({
+              type: 'ADD_SECTION_AT_INDEX',
+              insertIndex: targetIdx
+            }, '*');
+            return;
+          }
+
           // Check if clicking an explicit open-code-editor trigger inside a block
           var codeTrigger = e.target.closest('[data-action="open-code-editor"]');
           if (codeTrigger) {
@@ -1431,7 +1564,7 @@ ${theme.customCss || ''}
   </style>
 </head>
 <body>
-${renderedBlocksHtml}
+${blocksHtml}
 
 ${
   isEditor

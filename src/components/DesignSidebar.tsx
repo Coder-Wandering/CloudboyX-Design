@@ -39,6 +39,7 @@ import {
   Plus,
   BookmarkCheck,
   Type,
+  Waves,
 } from 'lucide-react';
 import { BlockInstance, SiteTheme, SeoSettings, BlockCategory, BlockPreset } from '../types';
 import { BLOCK_DEFINITIONS } from '../data/blockDefinitions';
@@ -80,6 +81,7 @@ export const SIDEBAR_BLOCK_CATEGORIES: {
   { id: 'headers', label: 'Headers & Hero', shortLabel: 'Headers', icon: LayoutTemplate },
   { id: 'features', label: 'Features & Cards', shortLabel: 'Features', icon: Columns2 },
   { id: 'content', label: 'Content & Articles', shortLabel: 'Content', icon: FileText },
+  { id: 'dividers', label: 'Section Dividers', shortLabel: 'Dividers', icon: Waves },
   { id: 'footers', label: 'Footers', shortLabel: 'Footers', icon: PanelBottom },
   { id: 'pricing', label: 'Pricing Tables', shortLabel: 'Pricing', icon: CreditCard },
   { id: 'navbars', label: 'Navbars & Menus', shortLabel: 'Navbars', icon: Menu },
@@ -107,6 +109,8 @@ interface DesignSidebarProps {
   selectedBlockId: string | null;
   onSelectBlock: (id: string) => void;
   onAddBlock: (blockType: string) => void;
+  targetInsertIndex?: number | null;
+  onClearTargetInsertIndex?: () => void;
 
   // Block Actions
   onUpdateSettings: (blockId: string, settings: Partial<BlockInstance['settings']>) => void;
@@ -164,6 +168,8 @@ export const DesignSidebar: React.FC<DesignSidebarProps> = ({
   selectedBlockId,
   onSelectBlock,
   onAddBlock,
+  targetInsertIndex = null,
+  onClearTargetInsertIndex,
   onUpdateSettings,
   onUpdateContent,
   onUpdateVisualNode,
@@ -204,19 +210,27 @@ export const DesignSidebar: React.FC<DesignSidebarProps> = ({
       counts[c.id] = 0;
     });
     const q = blockFilterQuery.trim().toLowerCase();
+    const terms = q.split(/\s+/).filter(Boolean);
 
     BLOCK_DEFINITIONS.forEach((b) => {
       const catDef = SIDEBAR_BLOCK_CATEGORIES.find((c) => c.id === b.category);
       const catLabel = catDef ? catDef.label.toLowerCase() : '';
-      const nameMatch = b.name.toLowerCase().includes(q);
-      const typeMatch = b.type.toLowerCase().includes(q);
-      const catIdMatch = b.category.toLowerCase().includes(q);
-      const catLabelMatch = catLabel.includes(q);
-      const catMatch = catIdMatch || catLabelMatch;
-      const descMatch = b.description.toLowerCase().includes(q);
-      const tagMatch = b.tags?.some((t) => t.toLowerCase().includes(q));
+      const catShortLabel = catDef ? catDef.shortLabel.toLowerCase() : '';
 
-      const queryMatches = !q || nameMatch || typeMatch || catMatch || descMatch || tagMatch;
+      const queryMatches =
+        terms.length === 0 ||
+        terms.every((term) => {
+          const nameMatch = b.name.toLowerCase().includes(term);
+          const typeMatch = b.type.toLowerCase().includes(term);
+          const catIdMatch = b.category.toLowerCase().includes(term);
+          const catLabelMatch = catLabel.includes(term);
+          const catShortMatch = catShortLabel.includes(term);
+          const catMatch = catIdMatch || catLabelMatch || catShortMatch;
+          const descMatch = b.description.toLowerCase().includes(term);
+          const tagMatch = b.tags?.some((t) => t.toLowerCase().includes(term));
+          return nameMatch || typeMatch || catMatch || descMatch || tagMatch;
+        });
+
       if (queryMatches) {
         counts.all = (counts.all || 0) + 1;
         counts[b.category] = (counts[b.category] || 0) + 1;
@@ -229,19 +243,27 @@ export const DesignSidebar: React.FC<DesignSidebarProps> = ({
   // Filtered available blocks list based on title or category search query and category filter
   const matchingBlocks = useMemo(() => {
     const q = blockFilterQuery.trim().toLowerCase();
+    const terms = q.split(/\s+/).filter(Boolean);
 
     return BLOCK_DEFINITIONS.filter((b) => {
       const catDef = SIDEBAR_BLOCK_CATEGORIES.find((c) => c.id === b.category);
       const catLabel = catDef ? catDef.label.toLowerCase() : '';
-      const nameMatch = b.name.toLowerCase().includes(q);
-      const typeMatch = b.type.toLowerCase().includes(q);
-      const catIdMatch = b.category.toLowerCase().includes(q);
-      const catLabelMatch = catLabel.includes(q);
-      const catMatch = catIdMatch || catLabelMatch;
-      const descMatch = b.description.toLowerCase().includes(q);
-      const tagMatch = b.tags?.some((t) => t.toLowerCase().includes(q));
+      const catShortLabel = catDef ? catDef.shortLabel.toLowerCase() : '';
 
-      const queryMatches = !q || nameMatch || typeMatch || catMatch || descMatch || tagMatch;
+      const queryMatches =
+        terms.length === 0 ||
+        terms.every((term) => {
+          const nameMatch = b.name.toLowerCase().includes(term);
+          const typeMatch = b.type.toLowerCase().includes(term);
+          const catIdMatch = b.category.toLowerCase().includes(term);
+          const catLabelMatch = catLabel.includes(term);
+          const catShortMatch = catShortLabel.includes(term);
+          const catMatch = catIdMatch || catLabelMatch || catShortMatch;
+          const descMatch = b.description.toLowerCase().includes(term);
+          const tagMatch = b.tags?.some((t) => t.toLowerCase().includes(term));
+          return nameMatch || typeMatch || catMatch || descMatch || tagMatch;
+        });
+
       const categoryMatches = blockCategoryFilter === 'all' || b.category === blockCategoryFilter;
 
       return queryMatches && categoryMatches;
@@ -969,56 +991,84 @@ export const DesignSidebar: React.FC<DesignSidebarProps> = ({
         {/* TAB 1: BLOCKS */}
         {activeTab === 'blocks' && (
           <div className="h-full flex flex-col" id="blocks-tab-pane">
-            {/* Dedicated Search and Sub-Category Tabs Bar for Block Templates */}
+            {/* Dedicated Block Library Search Bar and Category Filter Header */}
             <div
-              className={`p-2.5 border-b shadow-2xs shrink-0 flex flex-col gap-2 ${
+              className={`p-3 border-b shadow-2xs shrink-0 flex flex-col gap-2.5 transition-colors ${
                 isDark
-                  ? 'border-slate-800 bg-[#0b0f19]'
+                  ? 'border-slate-800 bg-[#0f172a]'
                   : 'border-slate-200 bg-white'
               }`}
             >
-              {/* Search Bar Input with Auto-focus, Category selector, and Clear Button */}
+              {/* Primary Search Bar Input with Category Selector, Clear Button, and Shortcut Badge */}
               <div className="flex items-center gap-1.5">
                 <div className="relative flex-1">
-                  <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                  <Search
+                    className={`w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none transition-colors ${
+                      blockFilterQuery
+                        ? isDark
+                          ? 'text-cyan-400'
+                          : 'text-blue-600'
+                        : 'text-slate-400'
+                    }`}
+                  />
                   <input
                     ref={searchInputRef}
                     id="blocks-filter-input"
                     name="blocksFilter"
                     type="text"
-                    placeholder="Filter by category or title..."
+                    placeholder="Search blocks by name or category..."
                     value={blockFilterQuery}
                     onChange={(e) => setBlockFilterQuery(e.target.value)}
                     onKeyDown={(e) => {
                       if (e.key === 'Escape') setBlockFilterQuery('');
                     }}
-                    aria-label="Filter blocks by category or title"
-                    className={`w-full pl-8 pr-7 py-1.5 text-xs border rounded-lg outline-hidden focus:ring-2 transition font-medium ${
+                    aria-label="Search blocks by name or category"
+                    className={`w-full pl-9 pr-14 py-2 text-xs border rounded-xl outline-hidden focus:ring-2 transition font-medium shadow-2xs ${
                       isDark
-                        ? 'bg-slate-900 border-slate-800 text-slate-100 placeholder:text-slate-500 focus:border-cyan-500 focus:ring-cyan-500/20'
-                        : 'bg-slate-50 border-slate-200 text-slate-800 placeholder:text-slate-400 focus:border-blue-500 focus:bg-white focus:ring-blue-500/10'
+                        ? 'bg-slate-900/90 border-slate-700/80 text-slate-100 placeholder:text-slate-500 focus:border-cyan-500 focus:ring-cyan-500/20'
+                        : 'bg-slate-50 border-slate-200 text-slate-900 placeholder:text-slate-400 focus:border-blue-500 focus:bg-white focus:ring-blue-500/10'
                     }`}
                   />
-                  {blockFilterQuery ? (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setBlockFilterQuery('');
-                        searchInputRef.current?.focus();
-                      }}
-                      title="Clear filter (Esc)"
-                      aria-label="Clear filter"
-                      className={`absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded-md transition cursor-pointer ${
-                        isDark ? 'text-slate-400 hover:text-slate-200 hover:bg-slate-800' : 'text-slate-400 hover:text-slate-700 hover:bg-slate-200'
-                      }`}
-                    >
-                      <X className="w-3.5 h-3.5" />
-                    </button>
-                  ) : (
-                    <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[9px] font-mono text-slate-400 bg-slate-800/60 px-1 py-0.2 rounded border border-slate-700/60 hidden sm:inline-block pointer-events-none">
-                      /
-                    </span>
-                  )}
+
+                  {/* Right Input Adornments: Match Counter + Clear Button OR Shortcut Hint */}
+                  <div className="absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center gap-1.5">
+                    {blockFilterQuery ? (
+                      <>
+                        <span
+                          className={`text-[10px] font-mono font-bold px-1.5 py-0.2 rounded-full ${
+                            isDark
+                              ? 'bg-cyan-950 text-cyan-300 border border-cyan-800/80'
+                              : 'bg-blue-100 text-blue-700 border border-blue-200'
+                          }`}
+                        >
+                          {matchingBlocksCount}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setBlockFilterQuery('');
+                            searchInputRef.current?.focus();
+                          }}
+                          title="Clear search (Esc)"
+                          aria-label="Clear search"
+                          className={`p-1 rounded-md transition cursor-pointer ${
+                            isDark
+                              ? 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+                              : 'text-slate-400 hover:text-slate-700 hover:bg-slate-200'
+                          }`}
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </>
+                    ) : (
+                      <span
+                        title="Press / or ⌘K to search"
+                        className="text-[10px] font-mono text-slate-400 bg-slate-800/60 px-1.5 py-0.5 rounded border border-slate-700/60 hidden sm:inline-block pointer-events-none select-none"
+                      >
+                        /
+                      </span>
+                    )}
+                  </div>
                 </div>
 
                 <select
@@ -1026,10 +1076,10 @@ export const DesignSidebar: React.FC<DesignSidebarProps> = ({
                   aria-label="Filter by block category"
                   value={blockCategoryFilter}
                   onChange={(e) => setBlockCategoryFilter(e.target.value as any)}
-                  className={`py-1.5 px-2 text-xs border rounded-lg outline-hidden focus:ring-2 transition font-medium cursor-pointer shrink-0 max-w-[130px] ${
+                  className={`py-2 px-2 text-xs border rounded-xl outline-hidden focus:ring-2 transition font-medium cursor-pointer shrink-0 max-w-[115px] ${
                     isDark
-                      ? 'bg-slate-900 border-slate-800 text-slate-200 focus:border-cyan-500'
-                      : 'bg-slate-50 border-slate-200 text-slate-700 focus:border-blue-500'
+                      ? 'bg-slate-900 border-slate-700 text-slate-200 focus:border-cyan-500'
+                      : 'bg-white border-slate-200 text-slate-700 focus:border-blue-500'
                   }`}
                 >
                   <option value="all">All ({BLOCK_DEFINITIONS.length})</option>
@@ -1041,189 +1091,118 @@ export const DesignSidebar: React.FC<DesignSidebarProps> = ({
                 </select>
               </div>
 
-              {/* Sub-Category Tabs Navigation Bar */}
+              {/* Category Filter Bar */}
               <div className="flex flex-col gap-1.5">
                 <div className="flex items-center justify-between text-[10.5px]">
-                  <div className="flex items-center gap-1.5">
-                    <span className="font-bold uppercase tracking-wider text-slate-400 text-[9.5px]">
-                      Sub-Categories
-                    </span>
-                    {blockCategoryFilter !== 'all' && (
-                      <span
-                        className={`inline-flex items-center gap-1 px-1.5 py-0.2 rounded-full font-bold text-[9.5px] ${
-                          isDark
-                            ? 'bg-cyan-950 text-cyan-300 border border-cyan-800'
-                            : 'bg-blue-100 text-blue-700 border border-blue-200'
-                        }`}
-                      >
-                        {SIDEBAR_BLOCK_CATEGORIES.find((c) => c.id === blockCategoryFilter)?.shortLabel}
-                        <button
-                          type="button"
-                          onClick={() => setBlockCategoryFilter('all')}
-                          className="hover:opacity-75 cursor-pointer ml-0.5"
-                          title="Show all categories"
-                        >
-                          <X className="w-2.5 h-2.5" />
-                        </button>
-                      </span>
-                    )}
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setIsCategoriesExpanded(!isCategoriesExpanded)}
-                    className={`text-[10px] font-medium flex items-center gap-1 px-1.5 py-0.5 rounded transition cursor-pointer ${
-                      isCategoriesExpanded
-                        ? isDark
-                          ? 'text-cyan-400 bg-slate-800'
-                          : 'text-blue-600 bg-blue-50'
-                        : isDark
-                        ? 'text-slate-400 hover:text-slate-200'
-                        : 'text-slate-500 hover:text-slate-800'
-                    }`}
-                    title={isCategoriesExpanded ? 'Collapse to tab strip' : 'View all categories as grid'}
-                  >
-                    <span>{isCategoriesExpanded ? 'Tabs' : 'Grid'}</span>
-                    {isCategoriesExpanded ? (
-                      <ChevronUp className="w-3 h-3" />
-                    ) : (
-                      <ChevronDown className="w-3 h-3" />
-                    )}
-                  </button>
+                  <span className="font-bold uppercase tracking-wider text-slate-400 text-[9.5px]">
+                    Filter by Category
+                  </span>
+                  {(blockCategoryFilter !== 'all' || blockFilterQuery) && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setBlockCategoryFilter('all');
+                        setBlockFilterQuery('');
+                      }}
+                      className={`text-[10px] font-semibold transition cursor-pointer ${
+                        isDark ? 'text-cyan-400 hover:text-cyan-300' : 'text-blue-600 hover:text-blue-700'
+                      }`}
+                    >
+                      Reset All
+                    </button>
+                  )}
                 </div>
 
-                {/* Mode A: Horizontal Scrolling Sub-Category Tab Strip */}
-                {!isCategoriesExpanded ? (
-                  <div className="relative flex items-center">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (categoryScrollRef.current) {
-                          categoryScrollRef.current.scrollBy({ left: -120, behavior: 'smooth' });
-                        }
-                      }}
-                      className={`p-1 rounded-l text-slate-400 hover:text-slate-200 shrink-0 transition ${
-                        isDark ? 'hover:bg-slate-800' : 'hover:bg-slate-200'
-                      }`}
-                      title="Scroll categories left"
-                      aria-label="Scroll categories left"
-                    >
-                      <ChevronLeft className="w-3.5 h-3.5" />
-                    </button>
+                {/* Horizontal Category Chips */}
+                <div
+                  ref={categoryScrollRef}
+                  className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5 px-0.5 scroll-smooth"
+                >
+                  {SIDEBAR_BLOCK_CATEGORIES.map((cat) => {
+                    const Icon = cat.icon;
+                    const isSelected = blockCategoryFilter === cat.id;
+                    const count = categoryFilteredCounts[cat.id] ?? 0;
 
-                    <div
-                      ref={categoryScrollRef}
-                      className="flex items-center gap-1 overflow-x-auto no-scrollbar py-0.5 px-0.5 scroll-smooth"
-                    >
-                      {SIDEBAR_BLOCK_CATEGORIES.map((cat) => {
-                        const Icon = cat.icon;
-                        const isSelected = blockCategoryFilter === cat.id;
-                        const matchCount = categoryFilteredCounts[cat.id] ?? 0;
-                        return (
-                          <button
-                            key={cat.id}
-                            type="button"
-                            onClick={() => setBlockCategoryFilter(cat.id)}
-                            className={`px-2 py-1 rounded-lg text-xs font-semibold flex items-center gap-1.5 shrink-0 transition cursor-pointer border ${
-                              isSelected
-                                ? isDark
-                                  ? 'bg-cyan-500 text-slate-950 font-bold border-cyan-400 shadow-xs'
-                                  : 'bg-blue-600 text-white font-bold border-blue-600 shadow-xs'
-                                : isDark
-                                ? 'bg-slate-900/90 text-slate-300 hover:text-white hover:bg-slate-800 border-slate-800/80'
-                                : 'bg-slate-50 text-slate-700 hover:text-slate-900 hover:bg-slate-100 border-slate-200'
-                            }`}
-                          >
-                            <Icon className="w-3 h-3 shrink-0" />
-                            <span>{cat.shortLabel}</span>
-                            <span
-                              className={`text-[9.5px] px-1 py-0.2 rounded-full font-bold ${
-                                isSelected
-                                  ? isDark
-                                    ? 'bg-slate-950/25 text-slate-950'
-                                    : 'bg-blue-800/60 text-white'
-                                  : isDark
-                                  ? 'bg-slate-800 text-slate-400'
-                                  : 'bg-slate-200/80 text-slate-600'
-                              }`}
-                            >
-                              {matchCount}
-                            </span>
-                          </button>
-                        );
-                      })}
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (categoryScrollRef.current) {
-                          categoryScrollRef.current.scrollBy({ left: 120, behavior: 'smooth' });
-                        }
-                      }}
-                      className={`p-1 rounded-r text-slate-400 hover:text-slate-200 shrink-0 transition ${
-                        isDark ? 'hover:bg-slate-800' : 'hover:bg-slate-200'
-                      }`}
-                      title="Scroll categories right"
-                      aria-label="Scroll categories right"
-                    >
-                      <ChevronRight className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                ) : (
-                  /* Mode B: Expanded 2-Column Sub-Category Grid for 1-click discovery */
-                  <div className="grid grid-cols-2 gap-1 max-h-48 overflow-y-auto pr-0.5 no-scrollbar py-0.5">
-                    {SIDEBAR_BLOCK_CATEGORIES.map((cat) => {
-                      const Icon = cat.icon;
-                      const isSelected = blockCategoryFilter === cat.id;
-                      const matchCount = categoryFilteredCounts[cat.id] ?? 0;
-                      return (
-                        <button
-                          key={cat.id}
-                          type="button"
-                          onClick={() => {
-                            setBlockCategoryFilter(cat.id);
-                            setIsCategoriesExpanded(false);
-                          }}
-                          className={`p-1.5 rounded-lg border text-left text-xs flex items-center justify-between transition cursor-pointer ${
+                    return (
+                      <button
+                        key={cat.id}
+                        type="button"
+                        onClick={() => {
+                          setBlockCategoryFilter(cat.id);
+                        }}
+                        className={`text-[11px] px-2.5 py-1 rounded-lg font-semibold flex items-center gap-1.5 transition shrink-0 cursor-pointer border ${
+                          isSelected
+                            ? isDark
+                              ? 'bg-cyan-500 text-slate-950 font-bold border-cyan-400 shadow-xs'
+                              : 'bg-blue-600 text-white font-bold border-blue-600 shadow-xs'
+                            : isDark
+                            ? 'bg-slate-900 hover:bg-slate-800 text-slate-300 border-slate-800'
+                            : 'bg-slate-100 hover:bg-slate-200/80 text-slate-700 border-slate-200/80'
+                        }`}
+                      >
+                        <Icon className="w-3 h-3 shrink-0" />
+                        <span>{cat.shortLabel}</span>
+                        <span
+                          className={`text-[9.5px] px-1 py-0.2 rounded-full font-bold ml-0.5 ${
                             isSelected
                               ? isDark
-                                ? 'bg-cyan-500 text-slate-950 font-bold border-cyan-400 shadow-xs'
-                                : 'bg-blue-600 text-white font-bold border-blue-600 shadow-xs'
+                                ? 'bg-slate-950/20 text-slate-950'
+                                : 'bg-blue-800/40 text-white'
                               : isDark
-                              ? 'bg-slate-900/90 hover:bg-slate-800 border-slate-800 text-slate-200'
-                              : 'bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-700'
+                              ? 'bg-slate-800 text-slate-400'
+                              : 'bg-slate-200 text-slate-600'
                           }`}
                         >
-                          <div className="flex items-center gap-1.5 truncate">
-                            <Icon className="w-3 h-3 shrink-0" />
-                            <span className="truncate">{cat.shortLabel}</span>
-                          </div>
-                          <span
-                            className={`text-[9.5px] px-1 py-0.2 rounded-full font-bold shrink-0 ml-1 ${
-                              isSelected
-                                ? isDark
-                                  ? 'bg-slate-950/25 text-slate-950'
-                                  : 'bg-blue-800/60 text-white'
-                                : isDark
-                                ? 'bg-slate-800 text-slate-400'
-                                : 'bg-slate-200/80 text-slate-600'
-                            }`}
-                          >
-                            {matchCount}
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
+                          {count}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
 
-              {/* Live Matching Count and Reset Option */}
-              <div className="flex items-center justify-between text-[10.5px] px-0.5 pt-0.5">
-                <span className="text-slate-400 font-medium">
-                  Matches: <strong className={isDark ? 'text-cyan-400' : 'text-blue-600'}>{matchingBlocksCount}</strong> of {BLOCK_DEFINITIONS.length}
-                </span>
-                {(blockFilterQuery || blockCategoryFilter !== 'all') && (
+              {/* Quick Search Suggestions when query is empty */}
+              {!blockFilterQuery && (
+                <div className="flex items-center gap-1 overflow-x-auto no-scrollbar pt-0.5">
+                  <span className="text-[9.5px] uppercase font-bold text-slate-400 shrink-0 mr-0.5">
+                    Suggested:
+                  </span>
+                  {['Hero', 'Navbar', 'Pricing', 'Cards', 'Contact', 'Footer', 'HTML'].map((tag) => (
+                    <button
+                      key={tag}
+                      type="button"
+                      onClick={() => {
+                        setBlockFilterQuery(tag);
+                        searchInputRef.current?.focus();
+                      }}
+                      className={`text-[10.5px] px-2 py-0.5 rounded-md font-medium transition shrink-0 cursor-pointer border ${
+                        isDark
+                          ? 'bg-slate-900/80 hover:bg-slate-800 text-slate-300 border-slate-800'
+                          : 'bg-slate-50 hover:bg-slate-100 text-slate-600 border-slate-200'
+                      }`}
+                    >
+                      {tag}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {/* Live Search & Filter Feedback Banner */}
+              {(blockFilterQuery || blockCategoryFilter !== 'all') && (
+                <div
+                  className={`flex items-center justify-between text-[11px] px-2 py-1 rounded-lg border ${
+                    isDark ? 'bg-slate-900/60 border-slate-800 text-slate-300' : 'bg-blue-50/70 border-blue-100 text-blue-900'
+                  }`}
+                >
+                  <span className="truncate">
+                    Showing <strong>{matchingBlocksCount}</strong> {matchingBlocksCount === 1 ? 'block' : 'blocks'}
+                    {blockFilterQuery && (
+                      <> matching &ldquo;<span className={isDark ? 'text-cyan-400 font-bold' : 'text-blue-600 font-bold'}>{blockFilterQuery}</span>&rdquo;</>
+                    )}
+                    {blockCategoryFilter !== 'all' && (
+                      <> in <strong className="capitalize">{SIDEBAR_BLOCK_CATEGORIES.find((c) => c.id === blockCategoryFilter)?.label}</strong></>
+                    )}
+                  </span>
                   <button
                     type="button"
                     onClick={() => {
@@ -1231,17 +1210,37 @@ export const DesignSidebar: React.FC<DesignSidebarProps> = ({
                       setBlockCategoryFilter('all');
                       searchInputRef.current?.focus();
                     }}
-                    className={`font-semibold transition cursor-pointer text-[10.5px] ${
+                    className={`text-[10px] font-bold underline transition ml-2 shrink-0 cursor-pointer ${
                       isDark ? 'text-cyan-400 hover:text-cyan-300' : 'text-blue-600 hover:text-blue-700'
                     }`}
                   >
-                    Reset Filter
+                    Clear Filter
                   </button>
-                )}
-              </div>
+                </div>
+              )}
             </div>
 
-            <div className="flex-1 overflow-hidden">
+            <div className="flex-1 overflow-hidden flex flex-col">
+              {typeof targetInsertIndex === 'number' && (
+                <div className="mx-3 my-1.5 px-3 py-1.5 rounded-xl bg-blue-500/10 border border-blue-500/30 flex items-center justify-between text-xs text-blue-600 dark:text-blue-400 shrink-0">
+                  <div className="flex items-center gap-1.5 font-medium">
+                    <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
+                    <span>
+                      Inserting into position <strong>#{targetInsertIndex + 1}</strong> of {blocks.length + 1}
+                    </span>
+                  </div>
+                  {onClearTargetInsertIndex && (
+                    <button
+                      type="button"
+                      onClick={onClearTargetInsertIndex}
+                      className="text-[10px] uppercase font-bold text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white px-1.5 py-0.5 rounded transition cursor-pointer"
+                      title="Insert at standard position instead"
+                    >
+                      Cancel
+                    </button>
+                  )}
+                </div>
+              )}
               <BlockLibraryDrawer
                 isOpen={true}
                 onClose={() => {}}
