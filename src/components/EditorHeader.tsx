@@ -27,6 +27,8 @@ import {
   Clock,
   FileCode,
   Share2,
+  Trash2,
+  X,
 } from 'lucide-react';
 import { ViewportMode, BlockInstance } from '../types';
 import { Breakpoint, BREAKPOINT_LABELS, BREAKPOINT_ORDER } from '../engine/bootstrapCascade';
@@ -62,6 +64,7 @@ interface EditorHeaderProps {
   onBackToLanding?: () => void;
   onOpenAdmin?: () => void;
   onOpenModules?: () => void;
+  onCleanAll?: () => void;
   themeMode?: 'light' | 'dark';
   onToggleThemeMode?: () => void;
   lastModified?: number;
@@ -128,6 +131,7 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
   onBackToLanding,
   onOpenAdmin,
   onOpenModules,
+  onCleanAll,
   themeMode = 'light',
   onToggleThemeMode,
   lastModified,
@@ -139,6 +143,7 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
   const { user, isDemoUnlocked, activeRole, permissions, agencyBranding, logOut } = useAuth();
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [isWorkspaceMenuOpen, setIsWorkspaceMenuOpen] = useState(false);
+  const [isCleanAllConfirmOpen, setIsCleanAllConfirmOpen] = useState(false);
   const [now, setNow] = useState<number>(Date.now());
   const [internalSaving, setInternalSaving] = useState<boolean>(false);
   const [justSaved, setJustSaved] = useState<boolean>(false);
@@ -176,6 +181,18 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  // Keyboard shortcut: Escape to close Clean All dialog
+  useEffect(() => {
+    if (!isCleanAllConfirmOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setIsCleanAllConfirmOpen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isCleanAllConfirmOpen]);
 
   const isClient = activeRole.startsWith('client_');
   const isDark = themeMode === 'dark';

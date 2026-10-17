@@ -659,6 +659,60 @@ export default function App() {
     [clipboardHistory, blocks, selectedBlockId, handlePasteBlock, showToast]
   );
 
+  // Paste latest clipboard item at an exact index (used by '+ Add Section Here' divider dropdown)
+  const handlePasteLatestAtIndex = useCallback(
+    (targetIndex: number) => {
+      if (clipboardHistory.length === 0) {
+        showToast({
+          title: 'Clipboard is Empty',
+          description: 'Select a block and press Ctrl+C to copy it first, or use the block action toolbar.',
+        });
+        return;
+      }
+      const latest = clipboardHistory[0].block;
+      handlePasteBlock(latest, targetIndex);
+    },
+    [clipboardHistory, handlePasteBlock, showToast]
+  );
+
+  // Insert a clean Blank Container at an exact index (used by '+ Add Section Here' divider dropdown)
+  const handleAddBlankContainerAtIndex = useCallback(
+    (targetIndex: number) => {
+      pushHistory(blocks);
+      const newBlock = createNewBlock('blank-container');
+      const updated = [...blocks];
+      const clamped = Math.max(0, Math.min(targetIndex, updated.length));
+      updated.splice(clamped, 0, newBlock);
+      setBlocks(updated);
+      setSelectedBlockId(newBlock.id);
+      setSelectedBlockIds([newBlock.id]);
+      triggerBlockAnimation(newBlock.id, 'added');
+      showToast({
+        title: 'Blank Container Added',
+        description: `Inserted an empty Bootstrap 5 container at slot #${clamped + 1}.`,
+        actionLabel: 'Undo',
+        onAction: handleUndo,
+      });
+    },
+    [blocks, pushHistory, triggerBlockAnimation, showToast, handleUndo]
+  );
+
+  // Clean All: clears all blocks from canvas and resets theme to default
+  const handleCleanAll = useCallback(() => {
+    pushHistory(blocks);
+    setBlocks([]);
+    setSelectedBlockId(null);
+    setSelectedBlockIds([]);
+    setTheme(JSON.parse(JSON.stringify(DEFAULT_THEME)));
+    setTargetInsertIndex(null);
+    showToast({
+      title: 'Canvas Cleaned',
+      description: 'All blocks cleared and project theme reset to default.',
+      actionLabel: 'Undo',
+      onAction: handleUndo,
+    });
+  }, [blocks, pushHistory, handleUndo, showToast]);
+
   // Clear clipboard history
   const handleClearClipboard = useCallback(() => {
     updateClipboard([]);
@@ -1427,6 +1481,7 @@ export default function App() {
           sessionStorage.setItem('builder_active_view', 'admin');
         }}
         onOpenModules={() => setIsModulesModalOpen(true)}
+        onCleanAll={handleCleanAll}
         lastModified={lastModified}
         isSaving={isSaving}
       />
@@ -1514,6 +1569,8 @@ export default function App() {
           }}
           onAddBlock={handleAddBlock}
           onAddSectionAtIndex={handleAddSectionAtIndex}
+          onPasteLatestAtIndex={handlePasteLatestAtIndex}
+          onAddBlankContainerAtIndex={handleAddBlankContainerAtIndex}
           isPreviewMode={isPreviewMode}
           isDesignModeOpen={isDesignModeOpen}
           themeMode={themeMode}

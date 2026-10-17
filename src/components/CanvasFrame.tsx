@@ -28,6 +28,7 @@ import {
   CopyPlus,
   X,
   Boxes,
+  Box,
 } from 'lucide-react';
 import { BlockInstance, SiteTheme, ViewportMode, SeoSettings, BlockAnimationMeta } from '../types';
 import { generateCompleteHtml } from '../utils/htmlGenerator';
@@ -70,6 +71,8 @@ interface CanvasFrameProps {
   onOpenLibrary: () => void;
   onAddBlock: (blockType: string) => void;
   onAddSectionAtIndex?: (index: number) => void;
+  onPasteLatestAtIndex?: (index: number) => void;
+  onAddBlankContainerAtIndex?: (index: number) => void;
   isPreviewMode: boolean;
   isDesignModeOpen?: boolean;
   themeMode?: 'light' | 'dark';
@@ -149,6 +152,422 @@ const BREAKPOINT_FRAME_CONFIG: Record<
   },
 };
 
+// Interactive Dropdown Menu for '+ Add Section Here' Divider Inserters
+interface AddSectionDropdownMenuProps {
+  index: number;
+  isOpen: boolean;
+  onClose: () => void;
+  onAddFromLibrary: (index: number) => void;
+  onPasteFromClipboard: (index: number) => void;
+  onAddBlankContainer: (index: number) => void;
+  clipboardCount?: number;
+  isDark: boolean;
+  align?: 'center' | 'left' | 'right';
+}
+
+const AddSectionDropdownMenu: React.FC<AddSectionDropdownMenuProps> = ({
+  index,
+  isOpen,
+  onClose,
+  onAddFromLibrary,
+  onPasteFromClipboard,
+  onAddBlankContainer,
+  clipboardCount = 0,
+  isDark,
+  align = 'center',
+}) => {
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleClickOutside = (e: MouseEvent | TouchEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        onClose();
+      }
+    };
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside, true);
+    document.addEventListener('touchstart', handleClickOutside, true);
+    document.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside, true);
+      document.removeEventListener('touchstart', handleClickOutside, true);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isOpen, onClose]);
+
+  if (!isOpen) return null;
+
+  const alignClass =
+    align === 'left'
+      ? 'left-0'
+      : align === 'right'
+      ? 'right-0'
+      : 'left-1/2 -translate-x-1/2';
+
+  return (
+    <div
+      ref={menuRef}
+      role="menu"
+      aria-label="Add Section Menu"
+      onClick={(e) => e.stopPropagation()}
+      className={`absolute top-full mt-2.5 ${alignClass} z-50 min-w-[240px] rounded-2xl p-1.5 shadow-2xl border backdrop-blur-md animate-in fade-in zoom-in-95 duration-150 select-none ${
+        isDark
+          ? 'bg-slate-900/98 border-slate-700/80 text-slate-100 shadow-cyan-950/70 ring-1 ring-cyan-500/20'
+          : 'bg-white/98 border-slate-200 text-slate-900 shadow-blue-500/15 ring-1 ring-blue-500/10'
+      }`}
+    >
+      {/* Menu Header with Slot Number & Close Button */}
+      <div className="flex items-center justify-between px-2.5 py-1.5 border-b border-slate-700/20 dark:border-slate-800/80 mb-1">
+        <span className="text-[10px] font-mono font-bold tracking-wider uppercase text-slate-400 dark:text-slate-400">
+          Insert Section • Slot #{index + 1}
+        </span>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onClose();
+          }}
+          className="text-slate-400 hover:text-slate-200 dark:hover:text-white p-0.5 rounded transition cursor-pointer"
+          title="Close menu"
+        >
+          <X className="w-3 h-3" />
+        </button>
+      </div>
+
+      <div className="flex flex-col gap-1">
+        {/* Option 1: Add from Library */}
+        <button
+          type="button"
+          role="menuitem"
+          onClick={(e) => {
+            e.stopPropagation();
+            onAddFromLibrary(index);
+            onClose();
+          }}
+          className={`w-full group flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-left transition cursor-pointer ${
+            isDark
+              ? 'hover:bg-blue-600/20 hover:text-cyan-300 text-slate-200'
+              : 'hover:bg-blue-50 hover:text-blue-700 text-slate-700'
+          }`}
+        >
+          <span
+            className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 transition-transform duration-200 group-hover:scale-110 ${
+              isDark
+                ? 'bg-blue-500/20 text-cyan-300 ring-1 ring-blue-500/30'
+                : 'bg-blue-100 text-blue-600 ring-1 ring-blue-200'
+            }`}
+          >
+            <Boxes className="w-4 h-4 stroke-[2.2]" />
+          </span>
+          <div className="flex-1 min-w-0">
+            <div className="text-xs font-semibold leading-tight flex items-center justify-between">
+              <span>Add from Library</span>
+              <ChevronRight className="w-3 h-3 opacity-40 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all" />
+            </div>
+            <div className="text-[10px] text-slate-400 dark:text-slate-400 truncate mt-0.5">
+              Browse block catalogue
+            </div>
+          </div>
+        </button>
+
+        {/* Option 2: Paste from Clipboard */}
+        <button
+          type="button"
+          role="menuitem"
+          onClick={(e) => {
+            e.stopPropagation();
+            onPasteFromClipboard(index);
+            onClose();
+          }}
+          className={`w-full group flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-left transition cursor-pointer ${
+            isDark
+              ? 'hover:bg-emerald-600/20 hover:text-emerald-300 text-slate-200'
+              : 'hover:bg-emerald-50 hover:text-emerald-700 text-slate-700'
+          }`}
+        >
+          <span
+            className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 transition-transform duration-200 group-hover:scale-110 ${
+              isDark
+                ? 'bg-emerald-500/20 text-emerald-300 ring-1 ring-emerald-500/30'
+                : 'bg-emerald-100 text-emerald-600 ring-1 ring-emerald-200'
+            }`}
+          >
+            <ClipboardCopy className="w-4 h-4 stroke-[2.2]" />
+          </span>
+          <div className="flex-1 min-w-0">
+            <div className="text-xs font-semibold leading-tight flex items-center justify-between">
+              <span>Paste from Clipboard</span>
+              {clipboardCount > 0 && (
+                <span className="text-[9px] font-mono font-bold px-1.5 py-0.2 rounded-full bg-emerald-500/20 text-emerald-600 dark:text-emerald-400">
+                  {clipboardCount}
+                </span>
+              )}
+            </div>
+            <div className="text-[10px] text-slate-400 dark:text-slate-400 truncate mt-0.5">
+              {clipboardCount > 0 ? 'Paste latest copied section' : 'Clipboard empty (Ctrl+C)'}
+            </div>
+          </div>
+        </button>
+
+        {/* Option 3: Add Blank Container */}
+        <button
+          type="button"
+          role="menuitem"
+          onClick={(e) => {
+            e.stopPropagation();
+            onAddBlankContainer(index);
+            onClose();
+          }}
+          className={`w-full group flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-left transition cursor-pointer ${
+            isDark
+              ? 'hover:bg-purple-600/20 hover:text-purple-300 text-slate-200'
+              : 'hover:bg-purple-50 hover:text-purple-700 text-slate-700'
+          }`}
+        >
+          <span
+            className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 transition-transform duration-200 group-hover:scale-110 ${
+              isDark
+                ? 'bg-purple-500/20 text-purple-300 ring-1 ring-purple-500/30'
+                : 'bg-purple-100 text-purple-600 ring-1 ring-purple-200'
+            }`}
+          >
+            <Box className="w-4 h-4 stroke-[2.2]" />
+          </span>
+          <div className="flex-1 min-w-0">
+            <div className="text-xs font-semibold leading-tight flex items-center justify-between">
+              <span>Add Blank Container</span>
+              <Plus className="w-3 h-3 opacity-40 group-hover:opacity-100 group-hover:rotate-90 transition-all" />
+            </div>
+            <div className="text-[10px] text-slate-400 dark:text-slate-400 truncate mt-0.5">
+              Empty responsive section
+            </div>
+          </div>
+        </button>
+      </div>
+    </div>
+  );
+};
+
+// Interactive '+ Add Section Here' Divider Inserter component for Canvas Agile Ruler
+const AddSectionPillDivider: React.FC<{
+  index: number;
+  onAddFromLibrary: (index: number) => void;
+  onPasteFromClipboard: (index: number) => void;
+  onAddBlankContainer: (index: number) => void;
+  isDark: boolean;
+  tooltipText: string;
+  clipboardCount?: number;
+}> = ({
+  index,
+  onAddFromLibrary,
+  onPasteFromClipboard,
+  onAddBlankContainer,
+  isDark,
+  tooltipText,
+  clipboardCount = 0,
+}) => {
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+
+  return (
+    <div className="group relative flex items-center justify-center h-6 px-0.5 cursor-pointer shrink-0 select-none transition-all duration-300 ease-out">
+      {/* Subtle guide line */}
+      <div
+        className={`w-0.5 h-3 rounded-full transition-all duration-300 ease-out ${
+          isDropdownOpen
+            ? isDark
+              ? 'bg-cyan-400 h-4.5'
+              : 'bg-blue-600 h-4.5'
+            : isDark
+            ? 'bg-slate-700/60 group-hover:bg-cyan-400 group-hover:h-4.5'
+            : 'bg-slate-300 group-hover:bg-blue-600 group-hover:h-4.5'
+        }`}
+      />
+
+      {/* Interactive Expandable Capsule Button with Dashed Border on Hover & Centered '+' Icon */}
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          setIsDropdownOpen((prev) => !prev);
+        }}
+        aria-haspopup="true"
+        aria-expanded={isDropdownOpen}
+        title={tooltipText}
+        className={`relative z-10 flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold shadow-xs transition-all duration-300 ease-out transform scale-75 opacity-70 group-hover:scale-100 group-hover:opacity-100 hover:scale-105 active:scale-95 cursor-pointer border border-transparent group-hover:border-dashed hover:border-dashed ${
+          isDropdownOpen
+            ? '!scale-100 !opacity-100 ring-2 ring-blue-500 border-dashed border-blue-400'
+            : ''
+        } ${
+          isDark
+            ? 'bg-slate-800 hover:bg-gradient-to-r hover:from-cyan-500 hover:to-blue-600 text-cyan-300 hover:text-slate-950 border-slate-700/80 group-hover:border-cyan-400 hover:border-cyan-300 shadow-cyan-950/40'
+            : 'bg-slate-100 hover:bg-gradient-to-r hover:from-blue-600 hover:to-cyan-500 text-slate-700 hover:text-white border-slate-300 group-hover:border-blue-500 hover:border-white shadow-blue-500/20'
+        }`}
+      >
+        {/* Small Centered '+' Icon within Capsule */}
+        <span
+          className={`w-3.5 h-3.5 rounded-full flex items-center justify-center shrink-0 shadow-2xs transition-transform duration-300 ease-out group-hover:rotate-90 ${
+            isDark
+              ? 'bg-cyan-400/20 text-cyan-300 group-hover:bg-slate-950/20 group-hover:text-slate-950'
+              : 'bg-white/40 text-slate-700 group-hover:bg-white/25 group-hover:text-white'
+          }`}
+        >
+          <Plus className="w-2.5 h-2.5 stroke-[3.2]" />
+        </span>
+        <span className="hidden group-hover:inline transition-all duration-200 ease-out whitespace-nowrap text-[9.5px]">
+          + Add Section
+        </span>
+      </button>
+
+      {/* Floating Hover Tooltip (only when dropdown is closed) */}
+      {!isDropdownOpen && (
+        <div className="absolute -bottom-8 left-1/2 -translate-x-1/2 pointer-events-none opacity-0 group-hover:opacity-100 transition-all duration-200 ease-out transform translate-y-1 group-hover:translate-y-0 z-40 whitespace-nowrap bg-slate-900 text-white text-[10px] font-bold px-2 py-0.5 rounded-md shadow-xl border border-blue-500/40 flex items-center gap-1">
+          <Plus className="w-2.5 h-2.5 text-cyan-400" />
+          <span>{tooltipText}</span>
+        </div>
+      )}
+
+      {/* Dropdown Menu on Click */}
+      <AddSectionDropdownMenu
+        index={index}
+        isOpen={isDropdownOpen}
+        onClose={() => setIsDropdownOpen(false)}
+        onAddFromLibrary={onAddFromLibrary}
+        onPasteFromClipboard={onPasteFromClipboard}
+        onAddBlankContainer={onAddBlankContainer}
+        clipboardCount={clipboardCount}
+        isDark={isDark}
+        align={index === 0 ? 'left' : 'center'}
+      />
+    </div>
+  );
+};
+
+// Interactive '+ Add Section Here' Divider component for vertical Canvas Sections Stack
+const CanvasVerticalAddSectionDivider: React.FC<{
+  index: number;
+  onAddFromLibrary: (index: number) => void;
+  onPasteFromClipboard: (index: number) => void;
+  onAddBlankContainer: (index: number) => void;
+  label?: string;
+  slotNumber: number;
+  isDark: boolean;
+  clipboardCount?: number;
+}> = ({
+  index,
+  onAddFromLibrary,
+  onPasteFromClipboard,
+  onAddBlankContainer,
+  label = 'Add Section Here',
+  slotNumber,
+  isDark,
+  clipboardCount = 0,
+}) => {
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+
+  return (
+    <div
+      className={`group relative h-8 my-1 z-20 flex items-center justify-center cursor-pointer select-none transition-all duration-300 ease-out ${
+        isDropdownOpen ? 'z-30' : ''
+      }`}
+      title={`Insert new section here (Slot #${slotNumber})`}
+      aria-label={`Insert new section here at slot #${slotNumber}`}
+    >
+      {/* Bi-directional Glowing Accent Line with Dashed Border on Hover */}
+      <div
+        className={`flex-1 h-[2px] transition-all duration-300 ease-out origin-right scale-x-75 opacity-0 group-hover:scale-x-100 group-hover:opacity-100 ${
+          isDropdownOpen ? '!scale-x-100 !opacity-100' : ''
+        } ${
+          isDark
+            ? 'bg-gradient-to-r from-transparent via-cyan-500/40 to-cyan-400 group-hover:border-t-2 group-hover:border-dashed group-hover:border-cyan-400/70'
+            : 'bg-gradient-to-r from-transparent via-blue-500/40 to-blue-600 group-hover:border-t-2 group-hover:border-dashed group-hover:border-blue-500/70'
+        }`}
+      />
+
+      {/* Idle small centered '+' indicator capsule */}
+      <div
+        className={`absolute inset-0 flex items-center justify-center pointer-events-none group-hover:opacity-0 transition-opacity duration-200 ${
+          isDropdownOpen ? 'opacity-0' : ''
+        }`}
+      >
+        <span
+          className={`w-4.5 h-4.5 rounded-full flex items-center justify-center shadow-xs border ${
+            isDark
+              ? 'bg-slate-900 border-slate-700 text-slate-400'
+              : 'bg-white border-slate-300 text-slate-500'
+          }`}
+        >
+          <Plus className="w-2.5 h-2.5 stroke-[2.8]" />
+        </span>
+      </div>
+
+      {/* Smooth Reveal Capsule Button with Dashed Border on Hover & Centered '+' Icon */}
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          setIsDropdownOpen((prev) => !prev);
+        }}
+        aria-haspopup="true"
+        aria-expanded={isDropdownOpen}
+        className={`relative z-10 inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-[11px] font-bold shadow-md cursor-pointer whitespace-nowrap transition-all duration-300 ease-out transform scale-90 -translate-y-0.5 opacity-0 group-hover:scale-100 group-hover:translate-y-0 group-hover:opacity-100 hover:scale-105 active:scale-95 border-2 border-dashed ${
+          isDropdownOpen
+            ? '!scale-100 !translate-y-0 !opacity-100 ring-2 ring-blue-500 border-blue-400'
+            : ''
+        } ${
+          isDark
+            ? 'bg-gradient-to-r from-slate-900 via-slate-850 to-slate-800 text-cyan-300 border-cyan-400/80 group-hover:border-cyan-300 hover:border-white shadow-cyan-950/60 hover:shadow-cyan-500/25'
+            : 'bg-gradient-to-r from-blue-600 to-cyan-600 text-white border-blue-300/80 group-hover:border-white hover:border-white hover:from-blue-700 hover:to-cyan-700 shadow-blue-500/30'
+        }`}
+      >
+        {/* Small Centered '+' Icon within Capsule */}
+        <span
+          className={`w-4 h-4 rounded-full flex items-center justify-center shrink-0 shadow-2xs transition-transform duration-300 ease-out group-hover:rotate-90 ${
+            isDark
+              ? 'bg-cyan-400/20 text-cyan-300 ring-1 ring-cyan-400/50'
+              : 'bg-white/25 text-white ring-1 ring-white/50'
+          }`}
+        >
+          <Plus className="w-2.5 h-2.5 stroke-[3.2]" />
+        </span>
+        <span className="tracking-wide">{label}</span>
+      </button>
+
+      {/* Bi-directional Glowing Accent Line with Dashed Border on Hover */}
+      <div
+        className={`flex-1 h-[2px] transition-all duration-300 ease-out origin-left scale-x-75 opacity-0 group-hover:scale-x-100 group-hover:opacity-100 ${
+          isDropdownOpen ? '!scale-x-100 !opacity-100' : ''
+        } ${
+          isDark
+            ? 'bg-gradient-to-r from-cyan-400 via-cyan-500/40 to-transparent group-hover:border-t-2 group-hover:border-dashed group-hover:border-cyan-400/70'
+            : 'bg-gradient-to-r from-blue-600 via-blue-500/40 to-transparent group-hover:border-t-2 group-hover:border-dashed group-hover:border-blue-500/70'
+        }`}
+      />
+
+      {/* Dropdown Menu on Click */}
+      <AddSectionDropdownMenu
+        index={index}
+        isOpen={isDropdownOpen}
+        onClose={() => setIsDropdownOpen(false)}
+        onAddFromLibrary={onAddFromLibrary}
+        onPasteFromClipboard={onPasteFromClipboard}
+        onAddBlankContainer={onAddBlankContainer}
+        clipboardCount={clipboardCount}
+        isDark={isDark}
+        align="center"
+      />
+    </div>
+  );
+};
+
 export const CanvasFrame: React.FC<CanvasFrameProps> = ({
   blocks,
   theme,
@@ -179,6 +598,8 @@ export const CanvasFrame: React.FC<CanvasFrameProps> = ({
   onOpenLibrary,
   onAddBlock,
   onAddSectionAtIndex,
+  onPasteLatestAtIndex,
+  onAddBlankContainerAtIndex,
   isPreviewMode,
   isDesignModeOpen = false,
   themeMode,
@@ -192,6 +613,36 @@ export const CanvasFrame: React.FC<CanvasFrameProps> = ({
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [isDragOver, setIsDragOver] = useState(false);
   const [showCascadeInfo, setShowCascadeInfo] = useState(false);
+  const [isSectionRailOpen, setIsSectionRailOpen] = useState(false);
+
+  // Granular block insertion handlers used by '+ Add Section Here' divider dropdowns
+  const handleExecuteAddFromLibrary = (index: number) => {
+    if (onAddSectionAtIndex) {
+      onAddSectionAtIndex(index);
+    } else if (onOpenLibrary) {
+      onOpenLibrary();
+    }
+  };
+
+  const handleExecutePasteFromClipboard = (index: number) => {
+    if (onPasteLatestAtIndex) {
+      onPasteLatestAtIndex(index);
+    } else if (onPasteLatest) {
+      onPasteLatest('below');
+    } else if (onOpenClipboard) {
+      onOpenClipboard();
+    }
+  };
+
+  const handleExecuteAddBlankContainer = (index: number) => {
+    if (onAddBlankContainerAtIndex) {
+      onAddBlankContainerAtIndex(index);
+    } else {
+      onAddBlock('blank-container');
+    }
+  };
+
+  const handleExecuteAddSection = handleExecuteAddFromLibrary;
 
   // Visual Bootstrap 5 12-Column Grid Guidelines Overlay Toggle state
   const [isGridOverlayEnabled, setIsGridOverlayEnabled] = useState<boolean>(() => {
@@ -474,11 +925,17 @@ export const CanvasFrame: React.FC<CanvasFrameProps> = ({
 
       if (e.data.type === 'ADD_SECTION_AT_INDEX') {
         const targetIndex = typeof e.data.insertIndex === 'number' ? e.data.insertIndex : blocks.length;
-        if (onAddSectionAtIndex) {
-          onAddSectionAtIndex(targetIndex);
-        } else if (onOpenLibrary) {
-          onOpenLibrary();
-        }
+        handleExecuteAddFromLibrary(targetIndex);
+      }
+
+      if (e.data.type === 'PASTE_BLOCK_AT_INDEX') {
+        const targetIndex = typeof e.data.insertIndex === 'number' ? e.data.insertIndex : blocks.length;
+        handleExecutePasteFromClipboard(targetIndex);
+      }
+
+      if (e.data.type === 'ADD_BLANK_CONTAINER_AT_INDEX') {
+        const targetIndex = typeof e.data.insertIndex === 'number' ? e.data.insertIndex : blocks.length;
+        handleExecuteAddBlankContainer(targetIndex);
       }
 
       if (e.data.type === 'BLOCK_DRAG_START') {
@@ -549,7 +1006,10 @@ export const CanvasFrame: React.FC<CanvasFrameProps> = ({
     onDuplicate,
     onDelete,
     onAddSectionAtIndex,
+    onPasteLatestAtIndex,
+    onAddBlankContainerAtIndex,
     onOpenLibrary,
+    onAddBlock,
     onInlineTextChange,
     selectedBlockId,
     onCopyBlock,
@@ -689,16 +1149,27 @@ export const CanvasFrame: React.FC<CanvasFrameProps> = ({
               : 'bg-white/95 border-slate-200/90 text-slate-800 backdrop-blur-xs'
           }`}
         >
-          {/* Left: Draggable Canvas Section Pills */}
+          {/* Left: Draggable Canvas Section Pills with Interactive '+ Add Section Here' Dividers */}
           <div
             id="canvas-block-instances-reorder-bar"
-            className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5 flex-1 min-w-0"
+            className="flex items-center gap-1 overflow-x-auto no-scrollbar py-0.5 flex-1 min-w-0"
           >
             <div
               className="flex items-center gap-1 overflow-x-auto no-scrollbar"
               role="list"
               aria-label="Draggable canvas block instances"
             >
+              {/* Slot #1: Add Section at Top */}
+              <AddSectionPillDivider
+                index={0}
+                onAddFromLibrary={handleExecuteAddFromLibrary}
+                onPasteFromClipboard={handleExecutePasteFromClipboard}
+                onAddBlankContainer={handleExecuteAddBlankContainer}
+                isDark={isDark}
+                tooltipText="Add Section at Top (#1)"
+                clipboardCount={clipboardCount}
+              />
+
               {blocks.map((block, index) => {
                 const isSelected = selectedBlockIds.includes(block.id);
                 const isDragging = block.id === draggedBlockId;
@@ -707,43 +1178,59 @@ export const CanvasFrame: React.FC<CanvasFrameProps> = ({
                 const showDropAfter = isDragTarget && dropPosition === 'after';
 
                 return (
-                  <div
-                    key={block.id}
-                    role="listitem"
-                    draggable
-                    onDragStart={(e) => handleBlockDragStart(e, block, index)}
-                    onDragOver={(e) => handleBlockDragOver(e, block, index)}
-                    onDragLeave={(e) => handleBlockDragLeave(e, block.id)}
-                    onDrop={(e) => handleBlockDrop(e, block, index)}
-                    onDragEnd={handleBlockDragEnd}
-                    onClick={(e) => {
-                      const isMulti = e.shiftKey || e.ctrlKey || e.metaKey || isMultiSelectMode;
-                      onSelectBlock(block.id, isMulti);
-                    }}
-                    onDoubleClick={() => onOpenSettings(block.id)}
-                    title={`Drag to reorder "${block.name}" • Click to select (Shift+Click to multi-select) • Double-click for settings`}
-                    className={`group relative flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-medium transition-all cursor-pointer shrink-0 border ${
-                      isDragging
-                        ? 'opacity-40 scale-95 border-dashed border-blue-500 bg-blue-500/10'
-                        : isSelected
-                        ? 'bg-blue-600 text-white border-blue-500 shadow-2xs'
-                        : isDark
-                        ? 'bg-slate-800/70 hover:bg-slate-800 text-slate-300 border-slate-800'
-                        : 'bg-slate-100/80 hover:bg-slate-200/70 text-slate-700 border-slate-200/80'
-                    } ${showDropBefore ? 'ring-2 ring-blue-500 border-l-4 border-l-blue-500' : ''} ${
-                      showDropAfter ? 'ring-2 ring-blue-500 border-r-4 border-r-blue-500' : ''
-                    }`}
-                  >
-                    <GripVertical
-                      className={`w-3 h-3 cursor-grab active:cursor-grabbing ${
-                        isSelected ? 'text-blue-200' : 'text-slate-400'
+                  <React.Fragment key={block.id}>
+                    <div
+                      role="listitem"
+                      draggable
+                      onDragStart={(e) => handleBlockDragStart(e, block, index)}
+                      onDragOver={(e) => handleBlockDragOver(e, block, index)}
+                      onDragLeave={(e) => handleBlockDragLeave(e, block.id)}
+                      onDrop={(e) => handleBlockDrop(e, block, index)}
+                      onDragEnd={handleBlockDragEnd}
+                      onClick={(e) => {
+                        const isMulti = e.shiftKey || e.ctrlKey || e.metaKey || isMultiSelectMode;
+                        onSelectBlock(block.id, isMulti);
+                      }}
+                      onDoubleClick={() => onOpenSettings(block.id)}
+                      title={`Drag to reorder "${block.name}" • Click to select (Shift+Click to multi-select) • Double-click for settings`}
+                      className={`group relative flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-medium transition-all cursor-pointer shrink-0 border ${
+                        isDragging
+                          ? 'opacity-40 scale-95 border-dashed border-blue-500 bg-blue-500/10'
+                          : isSelected
+                          ? 'bg-blue-600 text-white border-blue-500 shadow-2xs'
+                          : isDark
+                          ? 'bg-slate-800/70 hover:bg-slate-800 text-slate-300 border-slate-800'
+                          : 'bg-slate-100/80 hover:bg-slate-200/70 text-slate-700 border-slate-200/80'
+                      } ${showDropBefore ? 'ring-2 ring-blue-500 border-l-4 border-l-blue-500' : ''} ${
+                        showDropAfter ? 'ring-2 ring-blue-500 border-r-4 border-r-blue-500' : ''
                       }`}
+                    >
+                      <GripVertical
+                        className={`w-3 h-3 cursor-grab active:cursor-grabbing ${
+                          isSelected ? 'text-blue-200' : 'text-slate-400'
+                        }`}
+                      />
+                      <span className={`font-mono text-[10px] ${isSelected ? 'text-blue-100' : 'text-slate-400'}`}>
+                        {index + 1}.
+                      </span>
+                      <span className="truncate max-w-[105px]">{block.name}</span>
+                    </div>
+
+                    {/* Interactive '+ Add Section Here' Divider between each block */}
+                    <AddSectionPillDivider
+                      index={index + 1}
+                      onAddFromLibrary={handleExecuteAddFromLibrary}
+                      onPasteFromClipboard={handleExecutePasteFromClipboard}
+                      onAddBlankContainer={handleExecuteAddBlankContainer}
+                      isDark={isDark}
+                      tooltipText={
+                        index + 1 === blocks.length
+                          ? `Add Section at Bottom (#${blocks.length + 1})`
+                          : `Add Section Here between #${index + 1} and #${index + 2}`
+                      }
+                      clipboardCount={clipboardCount}
                     />
-                    <span className={`font-mono text-[10px] ${isSelected ? 'text-blue-100' : 'text-slate-400'}`}>
-                      {index + 1}.
-                    </span>
-                    <span className="truncate max-w-[105px]">{block.name}</span>
-                  </div>
+                  </React.Fragment>
                 );
               })}
             </div>
@@ -834,6 +1321,36 @@ export const CanvasFrame: React.FC<CanvasFrameProps> = ({
                 }`}
               >
                 {isGridOverlayEnabled ? 'ON' : 'OFF'}
+              </span>
+            </button>
+
+            {/* Canvas Sections Outline & Inserters Toggle */}
+            <button
+              type="button"
+              id="canvas-sections-rail-toggle-btn"
+              onClick={() => setIsSectionRailOpen((prev) => !prev)}
+              className={`flex items-center gap-1.5 px-2 py-0.5 rounded-lg text-[11px] font-semibold transition cursor-pointer border ${
+                isSectionRailOpen
+                  ? isDark
+                    ? 'bg-blue-600 text-white border-blue-500 shadow-xs'
+                    : 'bg-blue-600 text-white border-blue-600 shadow-xs'
+                  : isDark
+                  ? 'text-slate-300 hover:text-white hover:bg-slate-800 border-slate-700/80 bg-slate-900/60'
+                  : 'text-slate-700 hover:text-slate-900 hover:bg-slate-100 border-slate-200 bg-white'
+              }`}
+              title="Toggle Canvas Sections Outline with interactive '+ Add Section Here' dividers"
+              aria-label="Toggle Canvas Sections Outline"
+            >
+              <Layers className="w-3.5 h-3.5" />
+              <span className="hidden md:inline">Sections</span>
+              <span
+                className={`text-[9.5px] font-mono font-bold px-1.5 py-0.2 rounded-full ${
+                  isSectionRailOpen
+                    ? 'bg-blue-700 text-white'
+                    : 'bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300'
+                }`}
+              >
+                {blocks.length}
               </span>
             </button>
 
@@ -1019,6 +1536,95 @@ export const CanvasFrame: React.FC<CanvasFrameProps> = ({
             </div>
           </div>
         </div>
+
+        {/* Floating Canvas Sections Stack with Interactive '+ Add Section Here' Dividers */}
+        {isSectionRailOpen && !isPreviewMode && (
+          <div
+            id="canvas-sections-stack-flyout"
+            className={`absolute top-4 left-4 z-30 w-72 max-h-[75vh] overflow-y-auto rounded-2xl shadow-2xl border backdrop-blur-md p-3 flex flex-col gap-1 select-none animate-in fade-in slide-in-from-left-2 duration-200 ${
+              isDark
+                ? 'bg-slate-900/95 border-slate-700/80 text-slate-100'
+                : 'bg-white/95 border-slate-200 text-slate-900 shadow-blue-500/10'
+            }`}
+          >
+            <div className="flex items-center justify-between pb-2 border-b border-slate-700/50 mb-1">
+              <div className="flex items-center gap-1.5">
+                <Layers className="w-4 h-4 text-blue-500" />
+                <span className="text-xs font-bold">Canvas Section Stack</span>
+                <span className="text-[10px] font-mono font-bold px-1.5 py-0.2 rounded-full bg-blue-500/20 text-blue-400">
+                  {blocks.length}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsSectionRailOpen(false)}
+                className="p-1 rounded-md text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer"
+                title="Close"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+
+            <div className="text-[10.5px] text-slate-400 px-1 pb-1">
+              Click any <strong>+ Add Section Here</strong> divider to insert at that slot:
+            </div>
+
+            {/* Inserter at slot 0 (Top) */}
+            <CanvasVerticalAddSectionDivider
+              index={0}
+              onAddFromLibrary={handleExecuteAddFromLibrary}
+              onPasteFromClipboard={handleExecutePasteFromClipboard}
+              onAddBlankContainer={handleExecuteAddBlankContainer}
+              label="Add Section at Top"
+              slotNumber={1}
+              isDark={isDark}
+              clipboardCount={clipboardCount}
+            />
+
+            {blocks.map((block, index) => {
+              const isSelected = selectedBlockIds.includes(block.id);
+              return (
+                <React.Fragment key={block.id}>
+                  {/* Block Item Card */}
+                  <div
+                    onClick={() => onSelectBlock(block.id)}
+                    className={`p-2 rounded-xl border flex items-center justify-between gap-2 transition cursor-pointer ${
+                      isSelected
+                        ? isDark
+                          ? 'bg-blue-950/80 border-blue-500 text-blue-200 font-semibold shadow-xs'
+                          : 'bg-blue-50 border-blue-400 text-blue-900 font-semibold shadow-xs'
+                        : isDark
+                        ? 'bg-slate-800/60 hover:bg-slate-800 border-slate-700/60 text-slate-200'
+                        : 'bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-700'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 truncate">
+                      <span className="text-[10px] font-mono opacity-60 w-4">
+                        #{index + 1}
+                      </span>
+                      <span className="text-xs truncate">{block.name}</span>
+                    </div>
+                    <span className="text-[9.5px] font-mono uppercase opacity-60 px-1.5 py-0.5 rounded bg-black/10 dark:bg-white/10">
+                      {block.type}
+                    </span>
+                  </div>
+
+                  {/* Interactive '+ Add Section Here' Divider between each block */}
+                  <CanvasVerticalAddSectionDivider
+                    index={index + 1}
+                    onAddFromLibrary={handleExecuteAddFromLibrary}
+                    onPasteFromClipboard={handleExecutePasteFromClipboard}
+                    onAddBlankContainer={handleExecuteAddBlankContainer}
+                    label="Add Section Here"
+                    slotNumber={index + 2}
+                    isDark={isDark}
+                    clipboardCount={clipboardCount}
+                  />
+                </React.Fragment>
+              );
+            })}
+          </div>
+        )}
 
         {/* Live Iframe */}
         <iframe

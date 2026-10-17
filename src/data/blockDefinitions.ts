@@ -332,6 +332,68 @@ export const BLOCK_DEFINITIONS: BlockDefinition[] = [
     },
   },
 
+  // 0C. BLANK CONTAINER BLOCK
+  {
+    type: 'blank-container',
+    category: 'content',
+    name: 'Blank Container',
+    description: 'Empty responsive Bootstrap 5 container with clean dashed canvas placeholder ready for custom content or nested components.',
+    iconName: 'Box',
+    tags: ['container', 'blank', 'empty', 'section', 'wrapper', 'layout', 'grid', 'placeholder'],
+    defaultSettings: {
+      bgType: 'color',
+      bgColor: '#ffffff',
+      paddingTop: 4,
+      paddingBottom: 4,
+      containerWidth: 'container',
+      textColor: 'dark',
+      textAlign: 'center',
+      showTitle: true,
+      showSubtitle: false,
+      showDescription: true,
+      showButtons: false,
+      showMedia: false,
+      showIcons: false,
+    },
+    defaultContent: {
+      title: 'Blank Container',
+      description: 'An empty responsive Bootstrap 5 section. Use block parameters to customize layout, spacing, or add content.',
+      rawHtml: `<div class="p-5 border-2 border-dashed border-secondary-subtle rounded-4 text-center my-2 bg-light-subtle">
+  <div class="d-inline-flex p-3 rounded-circle bg-primary-subtle text-primary mb-3">
+    <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" fill="currentColor" class="bi bi-box" viewBox="0 0 16 16">
+      <path d="M8.186 1.113a.5.5 0 0 0-.372 0L1.846 3.5 8 5.961 14.154 3.5 8.186 1.113zM15 4.239l-6.5 2.6v7.922l6.5-2.6V4.24zM7.5 14.762V6.838L1 4.239v7.923l6.5 2.6zM7.443.184a1.5 1.5 0 0 1 1.114 0l6.29 2.516a.5.5 0 0 1 .307.464v10.5a.5.5 0 0 1-.307.464l-6.29 2.516a1.5 1.5 0 0 1-1.114 0l-6.29-2.516A.5.5 0 0 1 0 13.714V3.216a.5.5 0 0 1 .307-.464L7.443.184z"/>
+    </svg>
+  </div>
+  <h4 class="fw-semibold text-body mb-2" data-field="title" contenteditable="true">Blank Container</h4>
+  <p class="text-secondary mx-auto mb-0" style="max-width: 480px;" data-field="description" contenteditable="true">An empty responsive Bootstrap 5 container. Click here or use block settings to customize padding, background, or add custom HTML.</p>
+</div>`,
+    },
+    renderHtml: (block, theme, isEditor) => {
+      const { settings, content } = block;
+      const { style, className } = getBgStyle(settings);
+      const spacing = getPaddingClasses(settings.paddingTop ?? 4, settings.paddingBottom ?? 4, settings);
+      const title = content.title ?? 'Blank Container';
+      const desc = content.description ?? 'An empty responsive Bootstrap 5 container.';
+      const innerHtml =
+        block.customHtml ??
+        content.rawHtml ??
+        `<div class="p-5 border-2 border-dashed border-secondary-subtle rounded-4 text-center my-2 bg-light-subtle">
+  <h4 class="fw-semibold text-body mb-2" ${editAttr(isEditor, 'title')}>${title}</h4>
+  <p class="text-secondary mx-auto mb-0" style="max-width: 480px;" ${editAttr(isEditor, 'description')}>${desc}</p>
+</div>`;
+      const cssMarkup = block.customCss ?? content.rawCss ?? '';
+
+      return `
+<section id="block-${block.id}" data-block-id="${block.id}" data-blank-container="true" class="${spacing} ${className}" style="${style}">
+  ${renderOverlay(settings)}
+  ${cssMarkup ? `<style data-block-scoped-css="${block.id}">${cssMarkup}</style>` : ''}
+  <div class="${settings.containerWidth || 'container'} position-relative" style="z-index: 2;">
+    ${innerHtml}
+  </div>
+</section>`;
+    },
+  },
+
   // 1. NAVBAR STANDARD
   {
     type: 'navbar-standard',

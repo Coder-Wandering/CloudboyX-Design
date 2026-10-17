@@ -143,18 +143,58 @@ export function generateCompleteHtml(
   let blocksHtml = '';
   if (isEditor) {
     const parts: string[] = [];
+    const renderDividerDropdown = (insertIndex: number, slotNumber: number) => `
+        <div class="studio-divider-dropdown" role="menu" aria-label="Add Section Menu">
+          <div class="studio-dropdown-header">
+            <span>INSERT SECTION • SLOT #${slotNumber}</span>
+          </div>
+          <button type="button" class="studio-divider-dropdown-item" data-divider-action="library" data-insert-index="${insertIndex}" role="menuitem">
+            <span class="studio-dropdown-icon-wrap bg-primary-subtle text-primary">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="w-4 h-4" style="width: 15px; height: 15px;"><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/></svg>
+            </span>
+            <div class="studio-dropdown-text">
+              <div class="studio-dropdown-title">Add from Library</div>
+              <div class="studio-dropdown-desc">Browse block catalogue</div>
+            </div>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="studio-dropdown-chevron" style="width: 12px; height: 12px; opacity: 0.4;"><polyline points="9 18 15 12 9 6"></polyline></svg>
+          </button>
+          <button type="button" class="studio-divider-dropdown-item" data-divider-action="paste" data-insert-index="${insertIndex}" role="menuitem">
+            <span class="studio-dropdown-icon-wrap bg-success-subtle text-success">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="w-4 h-4" style="width: 15px; height: 15px;"><rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/></svg>
+            </span>
+            <div class="studio-dropdown-text">
+              <div class="studio-dropdown-title">Paste from Clipboard</div>
+              <div class="studio-dropdown-desc">Paste copied section</div>
+            </div>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="studio-dropdown-chevron" style="width: 12px; height: 12px; opacity: 0.4;"><polyline points="9 18 15 12 9 6"></polyline></svg>
+          </button>
+          <button type="button" class="studio-divider-dropdown-item" data-divider-action="blank" data-insert-index="${insertIndex}" role="menuitem">
+            <span class="studio-dropdown-icon-wrap bg-purple-subtle text-purple">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="w-4 h-4" style="width: 15px; height: 15px;"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg>
+            </span>
+            <div class="studio-dropdown-text">
+              <div class="studio-dropdown-title">Add Blank Container</div>
+              <div class="studio-dropdown-desc">Empty responsive section</div>
+            </div>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="studio-dropdown-chevron" style="width: 12px; height: 12px; opacity: 0.4;"><polyline points="9 18 15 12 9 6"></polyline></svg>
+          </button>
+        </div>`;
+
     if (blocks.length > 0) {
       parts.push(`
-      <div class="studio-block-divider-inserter studio-block-divider-top" data-insert-index="0" contenteditable="false">
-        <div class="studio-block-divider-line"></div>
-        <button type="button" class="studio-block-divider-btn" data-insert-index="0" title="Add Section at Top (Slot #1)">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
-            <line x1="12" y1="5" x2="12" y2="19"></line>
-            <line x1="5" y1="12" x2="19" y2="12"></line>
-          </svg>
-          <span>+ Add Section Here</span>
+      <div class="studio-block-divider-inserter studio-block-divider-top group relative z-[1042] flex items-center justify-center cursor-pointer select-none opacity-0 hover:opacity-100 transition-all duration-300 ease-out" data-insert-index="0" contenteditable="false">
+        <div class="studio-block-divider-line line-left flex-1 h-[2px] transition-all duration-300 ease-out origin-right scale-x-75 opacity-0 group-hover:scale-x-100 group-hover:opacity-100"></div>
+        <button type="button" class="studio-block-divider-btn inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-[11px] font-bold text-white shadow-md cursor-pointer whitespace-nowrap transition-all duration-300 ease-out transform scale-90 -translate-y-0.5 opacity-0 group-hover:scale-100 group-hover:translate-y-0 group-hover:opacity-100 hover:scale-105 active:scale-95 border-2 border-dashed border-white/60 hover:border-white" data-insert-index="0" title="Add Section at Top (Slot #1)" aria-haspopup="true">
+          <span class="divider-icon-capsule">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="12" y1="5" x2="12" y2="19"></line>
+              <line x1="5" y1="12" x2="19" y2="12"></line>
+            </svg>
+          </span>
+          <span>Add Section Here</span>
         </button>
-        <div class="studio-block-divider-line"></div>
+        <div class="studio-block-divider-line line-right flex-1 h-[2px] transition-all duration-300 ease-out origin-left scale-x-75 opacity-0 group-hover:scale-x-100 group-hover:opacity-100"></div>
+        ${renderDividerDropdown(0, 1)}
       </div>
       `);
     }
@@ -162,16 +202,19 @@ export function generateCompleteHtml(
     rawBlocksHtmlList.forEach((blockHtml, index) => {
       parts.push(blockHtml);
       parts.push(`
-      <div class="studio-block-divider-inserter" data-insert-index="${index + 1}" contenteditable="false">
-        <div class="studio-block-divider-line"></div>
-        <button type="button" class="studio-block-divider-btn" data-insert-index="${index + 1}" title="Add Section Here (Slot #${index + 2})">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
-            <line x1="12" y1="5" x2="12" y2="19"></line>
-            <line x1="5" y1="12" x2="19" y2="12"></line>
-          </svg>
-          <span>+ Add Section Here</span>
+      <div class="studio-block-divider-inserter group relative z-[1042] flex items-center justify-center cursor-pointer select-none opacity-0 hover:opacity-100 transition-all duration-300 ease-out" data-insert-index="${index + 1}" contenteditable="false">
+        <div class="studio-block-divider-line line-left flex-1 h-[2px] transition-all duration-300 ease-out origin-right scale-x-75 opacity-0 group-hover:scale-x-100 group-hover:opacity-100"></div>
+        <button type="button" class="studio-block-divider-btn inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-[11px] font-bold text-white shadow-md cursor-pointer whitespace-nowrap transition-all duration-300 ease-out transform scale-90 -translate-y-0.5 opacity-0 group-hover:scale-100 group-hover:translate-y-0 group-hover:opacity-100 hover:scale-105 active:scale-95 border-2 border-dashed border-white/60 hover:border-white" data-insert-index="${index + 1}" title="Add Section Here (Slot #${index + 2})" aria-haspopup="true">
+          <span class="divider-icon-capsule">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="12" y1="5" x2="12" y2="19"></line>
+              <line x1="5" y1="12" x2="19" y2="12"></line>
+            </svg>
+          </span>
+          <span>Add Section Here</span>
         </button>
-        <div class="studio-block-divider-line"></div>
+        <div class="studio-block-divider-line line-right flex-1 h-[2px] transition-all duration-300 ease-out origin-left scale-x-75 opacity-0 group-hover:scale-x-100 group-hover:opacity-100"></div>
+        ${renderDividerDropdown(index + 1, index + 2)}
       </div>
       `);
     });
@@ -513,84 +556,283 @@ export function generateCompleteHtml(
     }
 
     /* Mobirise-Style "+ Add Section Here" Divider Inserters between canvas blocks */
+    /* Tailwind Transition Utilities Implementation (transition-all duration-300 ease-out) */
     .studio-block-divider-inserter {
       position: relative;
-      height: 28px;
-      margin: -14px 0;
+      height: 32px;
+      margin: -16px 0;
       z-index: 1042;
       display: flex;
       align-items: center;
       justify-content: center;
       opacity: 0;
-      transition: opacity 0.2s cubic-bezier(0.16, 1, 0.3, 1), transform 0.2s ease, height 0.2s ease, margin 0.2s ease;
+      transition: all 300ms cubic-bezier(0, 0, 0.2, 1); /* Tailwind transition-all duration-300 ease-out */
       cursor: pointer;
       user-select: none;
       pointer-events: auto;
     }
     .studio-block-divider-inserter:hover {
       opacity: 1;
-      height: 38px;
-      margin: -19px 0;
-      transform: scale(1.01);
+      height: 44px;
+      margin: -22px 0;
     }
     .studio-block-divider-top {
       margin-top: 6px;
-      margin-bottom: -14px;
+      margin-bottom: -16px;
     }
     .studio-block-divider-top:hover {
       margin-top: 10px;
-      margin-bottom: -14px;
+      margin-bottom: -16px;
     }
     .studio-block-divider-line {
       flex: 1;
       height: 2px;
       background: linear-gradient(90deg, transparent, rgba(59, 130, 246, 0.45) 20%, #2563eb 50%, rgba(59, 130, 246, 0.45) 80%, transparent);
       pointer-events: none;
+      opacity: 0;
+      transform: scaleX(0.72);
+      transition: opacity 300ms cubic-bezier(0, 0, 0.2, 1), transform 300ms cubic-bezier(0, 0, 0.2, 1); /* Tailwind duration-300 ease-out */
+    }
+    .studio-block-divider-line.line-left {
+      transform-origin: right center;
+    }
+    .studio-block-divider-line.line-right {
+      transform-origin: left center;
+    }
+    .studio-block-divider-inserter:hover .studio-block-divider-line {
+      opacity: 1;
+      transform: scaleX(1);
     }
     .studio-block-divider-btn {
       display: inline-flex;
       align-items: center;
-      gap: 6px;
-      padding: 5px 16px;
+      gap: 7px;
+      padding: 6px 18px;
       border-radius: 9999px;
       background: linear-gradient(135deg, #0d6efd 0%, #00b4d8 100%);
       color: #ffffff;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       font-size: 11px;
       font-weight: 700;
-      border: 1px solid rgba(255, 255, 255, 0.4);
-      box-shadow: 0 4px 14px rgba(13, 110, 253, 0.45), 0 2px 6px rgba(0, 0, 0, 0.2);
+      border: 2px dashed rgba(255, 255, 255, 0.45);
+      box-shadow: 0 4px 14px rgba(13, 110, 253, 0.35), 0 2px 6px rgba(0, 0, 0, 0.15);
       cursor: pointer;
       letter-spacing: 0.02em;
-      transition: all 0.15s ease;
       white-space: nowrap;
+      pointer-events: auto;
+      opacity: 0;
+      transform: scale(0.9) translateY(-3px);
+      transition: opacity 300ms cubic-bezier(0, 0, 0.2, 1), transform 300ms cubic-bezier(0, 0, 0.2, 1), background 150ms ease, box-shadow 150ms ease, border-color 150ms ease; /* Tailwind duration-300 ease-out */
+    }
+    .studio-block-divider-btn .divider-icon-capsule {
+      width: 17px;
+      height: 17px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.25);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      transition: transform 300ms cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    .studio-block-divider-inserter:hover .studio-block-divider-btn {
+      opacity: 1;
+      transform: scale(1) translateY(0);
+      border: 2px dashed rgba(255, 255, 255, 0.85);
+      box-shadow: 0 6px 20px rgba(13, 110, 253, 0.55), 0 2px 8px rgba(0, 0, 0, 0.2);
     }
     .studio-block-divider-btn:hover {
       background: linear-gradient(135deg, #1d4ed8 0%, #0284c7 100%);
-      transform: scale(1.05);
-      box-shadow: 0 6px 20px rgba(13, 110, 253, 0.65);
+      border: 2px dashed #ffffff !important;
+      transform: scale(1.05) translateY(0) !important;
+      transition-duration: 150ms; /* Tailwind hover:scale-105 duration-150 */
+      box-shadow: 0 8px 24px rgba(13, 110, 253, 0.7);
+    }
+    .studio-block-divider-btn:hover .divider-icon-capsule {
+      transform: rotate(90deg);
+      background: rgba(255, 255, 255, 0.35);
+    }
+    .studio-block-divider-btn:active {
+      transform: scale(0.96) translateY(0) !important;
+      transition-duration: 75ms; /* Tailwind active:scale-95 duration-75 */
     }
     .studio-block-divider-btn svg {
-      width: 13px;
-      height: 13px;
-      stroke-width: 2.8;
+      width: 10px;
+      height: 10px;
+      stroke-width: 3.2;
       flex-shrink: 0;
     }
     [data-bs-theme="dark"] .studio-block-divider-line {
-      background: linear-gradient(90deg, transparent, rgba(0, 229, 209, 0.35) 20%, #00E5D1 50%, rgba(0, 229, 209, 0.35) 80%, transparent);
+      background: linear-gradient(90deg, transparent, rgba(0, 229, 209, 0.4) 20%, #00E5D1 50%, rgba(0, 229, 209, 0.4) 80%, transparent);
     }
     [data-bs-theme="dark"] .studio-block-divider-btn {
       background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
       color: #00E5D1;
-      border-color: rgba(0, 229, 209, 0.5);
+      border: 2px dashed rgba(0, 229, 209, 0.55);
       box-shadow: 0 4px 14px rgba(0, 229, 209, 0.25), 0 2px 6px rgba(0, 0, 0, 0.4);
+    }
+    [data-bs-theme="dark"] .studio-block-divider-btn .divider-icon-capsule {
+      background: rgba(0, 229, 209, 0.2);
+      color: #00E5D1;
+    }
+    [data-bs-theme="dark"] .studio-block-divider-inserter:hover .studio-block-divider-btn {
+      border: 2px dashed rgba(0, 229, 209, 0.85);
     }
     [data-bs-theme="dark"] .studio-block-divider-btn:hover {
       background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
       color: #38bdf8;
-      border-color: #38bdf8;
-      box-shadow: 0 6px 20px rgba(56, 189, 248, 0.4);
+      border: 2px dashed #38bdf8 !important;
+      box-shadow: 0 6px 20px rgba(56, 189, 248, 0.45);
     }
+    [data-bs-theme="dark"] .studio-block-divider-btn:hover .divider-icon-capsule {
+      background: rgba(56, 189, 248, 0.3);
+      color: #38bdf8;
+    }
+
+    /* Small Interactive Dropdown Menu on Click for Divider Inserter */
+    .studio-divider-dropdown {
+      position: absolute;
+      top: calc(100% + 8px);
+      left: 50%;
+      transform: translateX(-50%) scale(0.92);
+      opacity: 0;
+      pointer-events: none;
+      z-index: 1060;
+      min-width: 240px;
+      background: #ffffff;
+      border: 1px solid rgba(0, 0, 0, 0.12);
+      border-radius: 14px;
+      padding: 6px;
+      box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.2), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      transition: all 180ms cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    [data-bs-theme="dark"] .studio-divider-dropdown {
+      background: #0f172a;
+      border-color: rgba(255, 255, 255, 0.15);
+      box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.6), 0 0 15px rgba(0, 229, 209, 0.15);
+    }
+    .studio-divider-dropdown.is-open {
+      opacity: 1 !important;
+      pointer-events: auto !important;
+      transform: translateX(-50%) scale(1) !important;
+    }
+    .studio-block-divider-inserter.has-open-dropdown,
+    .studio-block-divider-inserter:has(.studio-divider-dropdown.is-open) {
+      opacity: 1 !important;
+      z-index: 1055 !important;
+    }
+    .studio-block-divider-inserter.has-open-dropdown .studio-block-divider-btn,
+    .studio-block-divider-inserter:has(.studio-divider-dropdown.is-open) .studio-block-divider-btn {
+      opacity: 1 !important;
+      transform: scale(1) translateY(0) !important;
+      border-color: #ffffff !important;
+      box-shadow: 0 0 0 3px rgba(13, 110, 253, 0.45) !important;
+    }
+    [data-bs-theme="dark"] .studio-block-divider-inserter.has-open-dropdown .studio-block-divider-btn,
+    [data-bs-theme="dark"] .studio-block-divider-inserter:has(.studio-divider-dropdown.is-open) .studio-block-divider-btn {
+      border-color: #38bdf8 !important;
+      box-shadow: 0 0 0 3px rgba(0, 229, 209, 0.45) !important;
+    }
+    .studio-dropdown-header {
+      padding: 4px 8px 6px;
+      font-size: 9.5px;
+      font-family: monospace;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      color: #94a3b8;
+      border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+      margin-bottom: 2px;
+      text-align: left;
+    }
+    [data-bs-theme="dark"] .studio-dropdown-header {
+      border-bottom-color: rgba(255, 255, 255, 0.08);
+      color: #64748b;
+    }
+    .studio-divider-dropdown-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      width: 100%;
+      padding: 7px 10px;
+      border: none;
+      background: transparent;
+      border-radius: 10px;
+      cursor: pointer;
+      text-align: left;
+      transition: background 150ms ease, transform 150ms ease;
+      font-family: inherit;
+      color: #1e293b;
+    }
+    [data-bs-theme="dark"] .studio-divider-dropdown-item {
+      color: #f1f5f9;
+    }
+    .studio-divider-dropdown-item:hover {
+      background: rgba(34, 34, 255, 0.08);
+      transform: translateX(2px);
+    }
+    [data-bs-theme="dark"] .studio-divider-dropdown-item:hover {
+      background: rgba(0, 229, 209, 0.12);
+    }
+    .studio-dropdown-icon-wrap {
+      width: 28px;
+      height: 28px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .bg-purple-subtle {
+      background-color: rgba(168, 85, 247, 0.12) !important;
+    }
+    .text-purple {
+      color: #9333ea !important;
+    }
+    [data-bs-theme="dark"] .text-purple {
+      color: #c084fc !important;
+    }
+    .studio-dropdown-text {
+      flex: 1;
+      min-width: 0;
+    }
+    .studio-dropdown-title {
+      font-size: 11.5px;
+      font-weight: 600;
+      line-height: 1.2;
+    }
+    .studio-dropdown-desc {
+      font-size: 9.5px;
+      color: #64748b;
+      margin-top: 1px;
+      line-height: 1.1;
+    }
+    [data-bs-theme="dark"] .studio-dropdown-desc {
+      color: #94a3b8;
+    }
+    .studio-dropdown-chevron {
+      flex-shrink: 0;
+      transition: transform 150ms ease;
+    }
+    .studio-divider-dropdown-item:hover .studio-dropdown-chevron {
+      transform: translateX(2px);
+      opacity: 1 !important;
+    }
+
+    /* Direct Tailwind Transition & Transform Utility Classes for Editor Canvas */
+    .transition-all { transition-property: all; }
+    .duration-300 { transition-duration: 300ms; }
+    .duration-200 { transition-duration: 200ms; }
+    .duration-150 { transition-duration: 150ms; }
+    .duration-75 { transition-duration: 75ms; }
+    .ease-out { transition-timing-function: cubic-bezier(0, 0, 0.2, 1); }
+    .ease-in-out { transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1); }
+    .scale-x-75 { transform: scaleX(0.75); }
+    .scale-x-100 { transform: scaleX(1); }
+    .origin-right { transform-origin: right center; }
+    .origin-left { transform-origin: left center; }
 
     /* CSS Entry Animations for Added and Moved Blocks */
     @keyframes studioBlockEnter {
@@ -1246,19 +1488,73 @@ export function generateCompleteHtml(
             }
           }
 
-          // Check if clicking a divider inserter
-          var dividerEl = e.target.closest('.studio-block-divider-inserter, .studio-block-divider-btn');
-          if (dividerEl) {
+          // Check if clicking a divider dropdown item
+          var dropdownItem = e.target.closest('[data-divider-action]');
+          if (dropdownItem) {
             e.preventDefault();
             e.stopPropagation();
-            var targetIdxAttr = dividerEl.getAttribute('data-insert-index');
+            var action = dropdownItem.getAttribute('data-divider-action');
+            var targetIdxAttr = dropdownItem.getAttribute('data-insert-index');
             var targetIdx = targetIdxAttr !== null ? parseInt(targetIdxAttr, 10) : 0;
-            window.parent.postMessage({
-              type: 'ADD_SECTION_AT_INDEX',
-              insertIndex: targetIdx
-            }, '*');
+
+            document.querySelectorAll('.studio-divider-dropdown.is-open').forEach(function(d) {
+              d.classList.remove('is-open');
+            });
+            document.querySelectorAll('.studio-block-divider-inserter.has-open-dropdown').forEach(function(ins) {
+              ins.classList.remove('has-open-dropdown');
+            });
+
+            if (action === 'library') {
+              window.parent.postMessage({
+                type: 'ADD_SECTION_AT_INDEX',
+                insertIndex: targetIdx
+              }, '*');
+            } else if (action === 'paste') {
+              window.parent.postMessage({
+                type: 'PASTE_BLOCK_AT_INDEX',
+                insertIndex: targetIdx
+              }, '*');
+            } else if (action === 'blank') {
+              window.parent.postMessage({
+                type: 'ADD_BLANK_CONTAINER_AT_INDEX',
+                insertIndex: targetIdx
+              }, '*');
+            }
             return;
           }
+
+          // Check if clicking a divider inserter button to toggle dropdown menu
+          var dividerBtn = e.target.closest('.studio-block-divider-btn');
+          if (dividerBtn) {
+            e.preventDefault();
+            e.stopPropagation();
+            var parentInserter = dividerBtn.closest('.studio-block-divider-inserter');
+            var dropdown = parentInserter ? parentInserter.querySelector('.studio-divider-dropdown') : null;
+            if (dropdown) {
+              var wasOpen = dropdown.classList.contains('is-open');
+              document.querySelectorAll('.studio-divider-dropdown.is-open').forEach(function(d) {
+                d.classList.remove('is-open');
+              });
+              document.querySelectorAll('.studio-block-divider-inserter.has-open-dropdown').forEach(function(ins) {
+                ins.classList.remove('has-open-dropdown');
+              });
+              if (!wasOpen) {
+                dropdown.classList.add('is-open');
+                if (parentInserter) {
+                  parentInserter.classList.add('has-open-dropdown');
+                }
+              }
+            }
+            return;
+          }
+
+          // Close all open divider dropdowns when clicking anywhere else
+          document.querySelectorAll('.studio-divider-dropdown.is-open').forEach(function(d) {
+            d.classList.remove('is-open');
+          });
+          document.querySelectorAll('.studio-block-divider-inserter.has-open-dropdown').forEach(function(ins) {
+            ins.classList.remove('has-open-dropdown');
+          });
 
           // Check if clicking an explicit open-code-editor trigger inside a block
           var codeTrigger = e.target.closest('[data-action="open-code-editor"]');
@@ -1313,6 +1609,14 @@ export function generateCompleteHtml(
 
         // Forward editor keyboard shortcuts to parent window
         document.addEventListener('keydown', function(e) {
+          if (e.key === 'Escape') {
+            document.querySelectorAll('.studio-divider-dropdown.is-open').forEach(function(d) {
+              d.classList.remove('is-open');
+            });
+            document.querySelectorAll('.studio-block-divider-inserter.has-open-dropdown').forEach(function(ins) {
+              ins.classList.remove('has-open-dropdown');
+            });
+          }
           var isEditingText = e.target.isContentEditable || e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA';
           if (!isEditingText && (e.ctrlKey || e.metaKey)) {
             var k = e.key.toLowerCase();
