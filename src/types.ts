@@ -69,6 +69,14 @@ export interface BlockSettings {
   bgParallax?: boolean;
   bgOverlay?: boolean;
   darkSection?: boolean;
+  // Media Carousel Settings
+  aspectRatio?: '16x9' | '4x3' | '21x9' | '1x1' | string;
+  carouselAutoplay?: boolean;
+  carouselInterval?: number;
+  carouselIndicators?: boolean;
+  carouselControls?: boolean;
+  carouselTransition?: 'slide' | 'crossfade' | string;
+  carouselPauseOnHover?: boolean;
 }
 
 export type CommentTag = 'TODO' | 'NOTE' | 'FIXME' | 'REVIEW' | 'DESIGN' | 'API';

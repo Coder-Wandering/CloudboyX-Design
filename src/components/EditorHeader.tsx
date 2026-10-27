@@ -198,7 +198,8 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
   const isDark = themeMode === 'dark';
 
   return (
-    <header
+    <>
+      <header
       className={`h-14 border-b px-3.5 flex items-center justify-between gap-3 select-none shrink-0 z-30 transition-colors duration-200 ${
         isDark
           ? 'border-slate-800 bg-[#111520] text-white'
@@ -610,7 +611,7 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
           )}
         </div>
 
-        {/* Undo / Redo */}
+        {/* Undo / Redo / Clean All */}
         <div
           className={`flex items-center p-0.5 rounded-xl border ${
             isDark ? 'bg-slate-900 border-slate-800' : 'bg-slate-100 border-slate-200/80'
@@ -642,6 +643,34 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
           >
             <Redo2 className="w-3.5 h-3.5" />
           </button>
+
+          {onCleanAll && (
+            <>
+              <div
+                className={`w-px h-3.5 mx-0.5 ${
+                  isDark ? 'bg-slate-800' : 'bg-slate-300'
+                }`}
+              />
+              <button
+                type="button"
+                id="btn-clean-all"
+                data-testid="btn-clean-all"
+                onClick={() => setIsCleanAllConfirmOpen(true)}
+                disabled={blockCount === 0}
+                className={`p-1.5 rounded-lg transition cursor-pointer ${
+                  blockCount === 0
+                    ? 'opacity-30 cursor-not-allowed pointer-events-none'
+                    : isDark
+                    ? 'text-slate-400 hover:text-red-400 hover:bg-red-500/10'
+                    : 'text-slate-500 hover:text-red-600 hover:bg-red-50'
+                }`}
+                title="Clean All (Clear all blocks and reset theme to default)"
+                aria-label="Clean All Canvas Sections"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            </>
+          )}
         </div>
       </div>
 
@@ -840,6 +869,83 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
         )}
       </div>
     </header>
+
+    {/* Confirmation Dialog for Clean All */}
+    {isCleanAllConfirmOpen && (
+      <div
+        id="clean-all-dialog-backdrop"
+        data-testid="clean-all-dialog-backdrop"
+        onClick={() => setIsCleanAllConfirmOpen(false)}
+        className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-xs animate-in fade-in duration-150"
+      >
+        <div
+          role="alertdialog"
+          aria-modal="true"
+          aria-labelledby="clean-all-dialog-title"
+          aria-describedby="clean-all-dialog-description"
+          onClick={(e) => e.stopPropagation()}
+          className={`w-full max-w-md rounded-2xl p-5 shadow-2xl border transition-all animate-in zoom-in-95 duration-150 ${
+            isDark
+              ? 'bg-slate-900 border-slate-700 text-white shadow-red-950/40 ring-1 ring-red-500/20'
+              : 'bg-white border-slate-200 text-slate-900 shadow-slate-900/25 ring-1 ring-red-500/10'
+          }`}
+        >
+          <div className="flex items-start gap-3.5">
+            <div className="w-10 h-10 rounded-xl bg-red-500/15 border border-red-500/30 flex items-center justify-center shrink-0 text-red-500">
+              <Trash2 className="w-5 h-5 stroke-[2.2]" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <h3 id="clean-all-dialog-title" className="text-base font-bold leading-snug">
+                Clean All Canvas Sections?
+              </h3>
+              <p id="clean-all-dialog-description" className="text-xs text-slate-400 dark:text-slate-400 mt-1.5 leading-relaxed">
+                This will clear all <strong className="text-red-400 font-semibold">{blockCount} {blockCount === 1 ? 'section' : 'sections'}</strong> from the canvas and reset the project theme, colors, and typography back to factory defaults.
+              </p>
+              <div className="mt-2.5 p-2 rounded-lg bg-amber-500/10 border border-amber-500/20 text-[11px] text-amber-500 dark:text-amber-400 flex items-center gap-1.5 font-medium">
+                <Sparkles className="w-3.5 h-3.5 shrink-0" />
+                <span>You can use Undo (Ctrl+Z) immediately afterwards if needed.</span>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsCleanAllConfirmOpen(false)}
+              className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1 rounded-lg transition cursor-pointer"
+              title="Close dialog"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+
+          <div className="mt-5 flex items-center justify-end gap-2.5 pt-3 border-t border-slate-200/60 dark:border-slate-800">
+            <button
+              type="button"
+              onClick={() => setIsCleanAllConfirmOpen(false)}
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold border transition cursor-pointer ${
+                isDark
+                  ? 'bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700'
+                  : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-300'
+              }`}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              id="btn-confirm-clean-all"
+              data-testid="btn-confirm-clean-all"
+              onClick={() => {
+                setIsCleanAllConfirmOpen(false);
+                onCleanAll?.();
+              }}
+              className="px-4 py-1.5 rounded-xl text-xs font-bold text-white bg-red-600 hover:bg-red-700 shadow-md shadow-red-600/30 transition cursor-pointer flex items-center gap-1.5 active:scale-98"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              <span>Clean All & Reset Theme</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   );
 };
 

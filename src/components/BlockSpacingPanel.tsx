@@ -10,15 +10,31 @@ import {
   ChevronDown,
   ChevronUp,
   Sparkles,
+  Sliders,
+  ArrowUpDown,
+  Wand2,
+  Layers,
+  CheckCircle2,
 } from 'lucide-react';
-import { BlockSettings } from '../types';
+import { BlockSettings, BlockInstance, SiteTheme } from '../types';
 import { Breakpoint } from '../engine/bootstrapCascade';
+import {
+  calculateBlockMarginBottom,
+  resolveThemeRhythmScale,
+  isAutoVerticalRhythmEnabled,
+  setAutoVerticalRhythmEnabled,
+} from '../utils/verticalRhythm';
 
 interface BlockSpacingPanelProps {
   settings: BlockSettings;
   onUpdateSettings: (newSettings: Partial<BlockSettings>) => void;
   blockId?: string;
   activeBreakpoint?: Breakpoint;
+  blocks?: BlockInstance[];
+  theme?: SiteTheme;
+  autoVerticalRhythm?: boolean;
+  onToggleAutoVerticalRhythm?: (enabled?: boolean) => void;
+  onApplyVerticalRhythmToAll?: () => void;
 }
 
 type SpacingLinkMode = 'individual' | 'axes' | 'all';
@@ -28,6 +44,11 @@ export const BlockSpacingPanel: React.FC<BlockSpacingPanelProps> = ({
   onUpdateSettings,
   blockId,
   activeBreakpoint = 'md',
+  blocks = [],
+  theme,
+  autoVerticalRhythm: autoRhythmProp,
+  onToggleAutoVerticalRhythm,
+  onApplyVerticalRhythmToAll,
 }) => {
   const [paddingLinkMode, setPaddingLinkMode] = useState<SpacingLinkMode>('individual');
   const [marginLinkMode, setMarginLinkMode] = useState<SpacingLinkMode>('individual');
@@ -45,6 +66,30 @@ export const BlockSpacingPanel: React.FC<BlockSpacingPanelProps> = ({
   const mb = typeof settings.marginBottom === 'number' ? settings.marginBottom : 0;
   const ms = settings.marginLeft ?? 0;
   const me = settings.marginRight ?? 0;
+
+  // Local fallback if not passed from parent
+  const [localAutoRhythm, setLocalAutoRhythm] = useState<boolean>(() => isAutoVerticalRhythmEnabled());
+  const isAutoRhythm = autoRhythmProp !== undefined ? autoRhythmProp : localAutoRhythm;
+
+  const handleToggleAutoRhythm = () => {
+    const next = !isAutoRhythm;
+    setLocalAutoRhythm(next);
+    setAutoVerticalRhythmEnabled(next);
+    if (onToggleAutoVerticalRhythm) {
+      onToggleAutoVerticalRhythm(next);
+    }
+  };
+
+  // Find index of current block and evaluate logical vertical rhythm
+  const currentBlockIndex = blocks && blockId ? blocks.findIndex((b) => b.id === blockId) : -1;
+  const currentBlock = currentBlockIndex >= 0 && blocks ? blocks[currentBlockIndex] : null;
+  const nextBlock = currentBlockIndex >= 0 && blocks && currentBlockIndex < blocks.length - 1 ? blocks[currentBlockIndex + 1] : null;
+
+  const rhythmCalc = currentBlock && theme
+    ? calculateBlockMarginBottom(currentBlock, nextBlock, theme, currentBlockIndex, blocks.length)
+    : null;
+
+  const activeScale = resolveThemeRhythmScale(theme);
 
   // Scale map description
   const scaleDescription: Record<number, string> = {
@@ -1004,6 +1049,97 @@ export const BlockSpacingPanel: React.FC<BlockSpacingPanelProps> = ({
               </div>
             </div>
           </div>
+        )}
+      </div>
+
+      {/* SECTION: LOGICAL VERTICAL RHYTHM & THEME SPACING */}
+      <div className="bg-white rounded-xl p-4 border border-slate-200/80 shadow-xs space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="w-6 h-6 rounded-md bg-blue-50 text-blue-600 flex items-center justify-center border border-blue-200">
+              <Sliders className="w-3.5 h-3.5" />
+            </div>
+            <div>
+              <span className="text-xs font-bold text-slate-900 block">
+                Logical Vertical Rhythm
+              </span>
+              <div className="flex items-center gap-1.5 text-[10px] text-slate-500">
+                <span className="capitalize font-medium text-blue-600">{activeScale} Scale</span>
+                <span aria-hidden="true">·</span>
+                <span>{theme?.fontFamily || 'Inter'} typography</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Auto-reorder spacing toggle */}
+          <button
+            type="button"
+            onClick={handleToggleAutoRhythm}
+            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold transition border cursor-pointer ${
+              isAutoRhythm
+                ? 'bg-blue-600 text-white border-blue-500 shadow-2xs'
+                : 'bg-slate-100 text-slate-600 hover:bg-slate-200 border-slate-200'
+            }`}
+            title="When active, reordering blocks automatically calculates and applies logical margin-bottom spacing based on theme rhythm and adjacent block types"
+          >
+            <ArrowUpDown className="w-3 h-3" />
+            <span>Auto-calc:</span>
+            <span className={`text-[10px] uppercase font-mono font-bold ${isAutoRhythm ? 'text-blue-100' : 'text-slate-500'}`}>
+              {isAutoRhythm ? 'ON' : 'OFF'}
+            </span>
+          </button>
+        </div>
+
+        {/* Diagnostic for Current Block */}
+        {rhythmCalc && (
+          <div className="p-3 bg-slate-50 border border-slate-200/70 rounded-lg space-y-2 text-xs">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5">
+                <span className="text-[11px] font-semibold text-slate-800">
+                  Calculated Optimal:
+                </span>
+                <code className="px-1.5 py-0.5 rounded font-mono font-bold text-xs bg-blue-50 text-blue-700 border border-blue-200">
+                  mb-{rhythmCalc.marginBottom}
+                </code>
+                {mb === rhythmCalc.marginBottom ? (
+                  <span className="inline-flex items-center gap-1 text-[10px] font-medium text-emerald-600">
+                    <CheckCircle2 className="w-3 h-3 text-emerald-500" />
+                    In Sync
+                  </span>
+                ) : (
+                  <span className="text-[10px] text-amber-600 font-medium">
+                    Current: mb-{mb}
+                  </span>
+                )}
+              </div>
+
+              {mb !== rhythmCalc.marginBottom && (
+                <button
+                  type="button"
+                  onClick={() => onUpdateSettings({ marginBottom: rhythmCalc.marginBottom })}
+                  className="px-2 py-0.5 rounded text-[11px] font-medium bg-blue-600 text-white hover:bg-blue-700 transition shadow-2xs cursor-pointer"
+                >
+                  Apply mb-{rhythmCalc.marginBottom}
+                </button>
+              )}
+            </div>
+
+            <p className="text-[11px] text-slate-600 leading-relaxed">
+              {rhythmCalc.reason}
+            </p>
+          </div>
+        )}
+
+        {/* Global Action: Auto-balance all blocks */}
+        {onApplyVerticalRhythmToAll && (
+          <button
+            type="button"
+            onClick={onApplyVerticalRhythmToAll}
+            className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-blue-50 hover:text-blue-700 border border-slate-200 hover:border-blue-200 transition cursor-pointer"
+          >
+            <Wand2 className="w-3.5 h-3.5 text-blue-600" />
+            <span>Harmonize All Block Margins for this Theme</span>
+          </button>
         )}
       </div>
 

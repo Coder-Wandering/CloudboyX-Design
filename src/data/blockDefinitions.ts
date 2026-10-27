@@ -1383,6 +1383,189 @@ export const BLOCK_DEFINITIONS: BlockDefinition[] = [
     },
   },
 
+  // 8B. MEDIA CAROUSEL (IMAGES & VIDEOS)
+  {
+    type: 'media-carousel',
+    category: 'gallery',
+    name: 'Media Carousel (Video & Image)',
+    description: 'Interactive responsive Bootstrap 5 carousel supporting mixed videos (MP4, YouTube, Vimeo) and images with slide captions, touch swipe, and playback controls',
+    iconName: 'Film',
+    tags: ['carousel', 'slider', 'media', 'video', 'images', 'youtube', 'vimeo', 'gallery', 'showcase', 'slideshow', 'mp4'],
+    defaultSettings: {
+      bgType: 'color',
+      bgColor: '#0f172a',
+      paddingTop: 5,
+      paddingBottom: 5,
+      containerWidth: 'container',
+      textColor: 'light',
+      textAlign: 'center',
+      showTitle: true,
+      showSubtitle: true,
+      showDescription: true,
+      showButtons: false,
+      showMedia: true,
+      showIcons: true,
+      aspectRatio: '16x9',
+      carouselAutoplay: true,
+      carouselInterval: 5000,
+      carouselIndicators: true,
+      carouselControls: true,
+      carouselTransition: 'slide',
+      carouselPauseOnHover: true,
+    },
+    defaultContent: {
+      subtitle: 'INTERACTIVE MEDIA CAROUSEL',
+      title: 'Dynamic Video & Image Showcase',
+      description: 'Streamline storytelling with mixed MP4 video clips, streaming embeds, and high-resolution photo slides.',
+      slides: [
+        {
+          id: 'slide-1',
+          type: 'video',
+          url: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
+          poster: 'https://images.unsplash.com/photo-1536240478700-b869070f9279?auto=format&fit=crop&w=1200&q=80',
+          title: 'High-Definition Video Experience',
+          caption: 'Native HTML5 video playback with responsive aspect ratio containment and smooth controls.',
+          badge: 'HTML5 Video',
+        },
+        {
+          id: 'slide-2',
+          type: 'image',
+          url: 'https://images.unsplash.com/photo-1517694712202-14dd9538aa97?auto=format&fit=crop&w=1200&q=80',
+          poster: '',
+          title: 'Modern Creative Workspace',
+          caption: 'High-resolution responsive imagery with rich typography and backdrop blur caption overlays.',
+          badge: 'Photo Slide',
+        },
+        {
+          id: 'slide-3',
+          type: 'video',
+          url: 'https://www.youtube.com/embed/dQw4w9WgXcQ',
+          poster: 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&w=1200&q=80',
+          title: 'Embedded YouTube & Cloud Video',
+          caption: 'Seamlessly frame external streaming video providers without aspect ratio distortion or layout shifts.',
+          badge: 'Cloud Embed',
+        },
+        {
+          id: 'slide-4',
+          type: 'image',
+          url: 'https://images.unsplash.com/photo-1498050108023-c5249f4df085?auto=format&fit=crop&w=1200&q=80',
+          poster: '',
+          title: 'Responsive Architecture',
+          caption: 'Auto-adapts layout between mobile devices, tablets, and ultra-wide desktop monitors.',
+          badge: 'Responsive',
+        },
+      ],
+    },
+    renderHtml: (block, theme, isEditor) => {
+      const { settings, content } = block;
+      const { style, className } = getBgStyle(settings);
+      const padding = getSpacingClasses(settings);
+      const carouselId = `carousel-${block.id.replace(/[^a-zA-Z0-9_-]/g, '-')}`;
+
+      let rawSlides = content.slides;
+      if (!Array.isArray(rawSlides) || rawSlides.length === 0) {
+        rawSlides = [
+          {
+            id: 'slide-1',
+            type: content.slide1Type || 'video',
+            url: content.slide1Url || 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
+            poster: content.slide1Poster || 'https://images.unsplash.com/photo-1536240478700-b869070f9279?auto=format&fit=crop&w=1200&q=80',
+            title: content.slide1Title || 'High-Definition Video Experience',
+            caption: content.slide1Caption || 'Native HTML5 video playback with responsive aspect ratio containment.',
+            badge: content.slide1Badge || 'HTML5 Video',
+          },
+          {
+            id: 'slide-2',
+            type: content.slide2Type || 'image',
+            url: content.slide2Url || 'https://images.unsplash.com/photo-1517694712202-14dd9538aa97?auto=format&fit=crop&w=1200&q=80',
+            poster: '',
+            title: content.slide2Title || 'Modern Creative Workspace',
+            caption: content.slide2Caption || 'High-resolution responsive imagery with rich typography.',
+            badge: content.slide2Badge || 'Photo Slide',
+          },
+        ];
+      }
+
+      const ratio = settings.aspectRatio || '16x9';
+      const isFade = settings.carouselTransition === 'crossfade';
+      const autoplay = settings.carouselAutoplay !== false;
+      const interval = typeof settings.carouselInterval === 'number' ? settings.carouselInterval : 5000;
+      const showIndicators = settings.carouselIndicators !== false;
+      const showControls = settings.carouselControls !== false;
+      const pauseOnHover = settings.carouselPauseOnHover !== false;
+
+      return `
+<section id="block-${block.id}" data-block-id="${block.id}" class="${padding} ${className}" style="${style}">
+  <div class="${settings.containerWidth}">
+    ${(settings.showTitle || settings.showSubtitle || settings.showDescription) ? `
+    <div class="text-${settings.textAlign} mb-4">
+      ${settings.showSubtitle ? `<p class="text-primary fw-bold text-uppercase mb-2" ${editAttr(isEditor, 'subtitle')}>${content.subtitle || 'INTERACTIVE MEDIA CAROUSEL'}</p>` : ''}
+      ${settings.showTitle ? `<h2 class="display-5 fw-bold mb-3" ${editAttr(isEditor, 'title')}>${content.title || 'Dynamic Video & Image Showcase'}</h2>` : ''}
+      ${settings.showDescription ? `<p class="lead text-body-secondary mx-auto" style="max-width: 720px;" ${editAttr(isEditor, 'description')}>${content.description || 'Explore rich visual storytelling with responsive video clips and photography.'}</p>` : ''}
+    </div>` : ''}
+
+    <div class="position-relative mx-auto" style="max-width: 1060px;">
+      <div id="${carouselId}" class="carousel slide ${isFade ? 'carousel-fade' : ''} rounded-4 overflow-hidden shadow-2xl border border-secondary border-opacity-25" data-bs-ride="${autoplay ? 'carousel' : 'false'}" data-bs-interval="${interval}" ${pauseOnHover ? 'data-bs-pause="hover"' : 'data-bs-pause="false"'}>
+        ${showIndicators && rawSlides.length > 1 ? `
+        <div class="carousel-indicators mb-3">
+          ${rawSlides.map((_, idx) => `
+            <button type="button" data-bs-target="#${carouselId}" data-bs-slide-to="${idx}" class="${idx === 0 ? 'active' : ''}" aria-current="${idx === 0 ? 'true' : 'false'}" aria-label="Slide ${idx + 1}"></button>
+          `).join('')}
+        </div>` : ''}
+
+        <div class="carousel-inner">
+          ${rawSlides.map((slide, idx) => {
+            const isActive = idx === 0;
+            const isVideo = slide.type === 'video';
+            const url = slide.url || '';
+            const isEmbed = isVideo && (url.includes('youtube.com') || url.includes('youtu.be') || url.includes('vimeo.com'));
+
+            let mediaHtml = '';
+            if (isVideo) {
+              if (isEmbed) {
+                let embedSrc = url;
+                if (url.includes('watch?v=')) {
+                  embedSrc = url.replace('watch?v=', 'embed/');
+                }
+                mediaHtml = `<iframe src="${embedSrc}" title="${slide.title || 'Video slide'}" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen class="w-100 h-100 border-0"></iframe>`;
+              } else {
+                mediaHtml = `<video class="w-100 h-100" style="object-fit: cover;" controls playsinline preload="metadata" ${slide.poster ? `poster="${slide.poster}"` : ''}><source src="${url}" type="video/mp4">Your browser does not support HTML5 video.</video>`;
+              }
+            } else {
+              mediaHtml = `<img src="${url}" alt="${slide.title || 'Slide Image'}" class="w-100 h-100" style="object-fit: cover;" loading="lazy" />`;
+            }
+
+            return `
+          <div class="carousel-item ${isActive ? 'active' : ''}">
+            <div class="ratio ratio-${ratio} bg-black">
+              ${mediaHtml}
+            </div>
+            ${(slide.title || slide.caption || slide.badge) ? `
+            <div class="carousel-caption text-start p-4 p-md-5 d-flex flex-column justify-content-end pointer-events-none" style="background: linear-gradient(to top, rgba(0,0,0,0.88) 0%, rgba(0,0,0,0.45) 55%, transparent 100%); bottom: 0; left: 0; right: 0;">
+              ${slide.badge ? `<span class="badge bg-primary text-white text-uppercase tracking-wider fw-bold mb-2 align-self-start shadow-sm">${slide.badge}</span>` : ''}
+              ${slide.title ? `<h3 class="h3 fw-bold text-white mb-2 text-shadow" style="text-shadow: 0 2px 4px rgba(0,0,0,0.6);">${slide.title}</h3>` : ''}
+              ${slide.caption ? `<p class="lead text-white-50 mb-0 d-none d-sm-block text-shadow" style="max-width: 650px; text-shadow: 0 1px 3px rgba(0,0,0,0.6); font-size: 1rem;">${slide.caption}</p>` : ''}
+            </div>` : ''}
+          </div>`;
+          }).join('')}
+        </div>
+
+        ${showControls && rawSlides.length > 1 ? `
+        <button class="carousel-control-prev" type="button" data-bs-target="#${carouselId}" data-bs-slide="prev" aria-label="Previous Slide">
+          <span class="carousel-control-prev-icon p-3 rounded-circle bg-dark bg-opacity-50" aria-hidden="true"></span>
+          <span class="visually-hidden">Previous</span>
+        </button>
+        <button class="carousel-control-next" type="button" data-bs-target="#${carouselId}" data-bs-slide="next" aria-label="Next Slide">
+          <span class="carousel-control-next-icon p-3 rounded-circle bg-dark bg-opacity-50" aria-hidden="true"></span>
+          <span class="visually-hidden">Next</span>
+        </button>` : ''}
+      </div>
+    </div>
+  </div>
+</section>`;
+    },
+  },
+
   // 9. TESTIMONIALS
   {
     type: 'testimonials-cards',

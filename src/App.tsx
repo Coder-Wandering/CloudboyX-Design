@@ -38,6 +38,12 @@ import { BlockCodeEditorModal } from './components/BlockCodeEditorModal';
 import { PdfExportModal } from './components/PdfExportModal';
 import { RevisionHistoryModal } from './components/RevisionHistoryModal';
 import { ShareProjectModal } from './components/ShareProjectModal';
+import {
+  applyLogicalVerticalRhythm,
+  isAutoVerticalRhythmEnabled,
+  setAutoVerticalRhythmEnabled,
+  resolveThemeRhythmScale,
+} from './utils/verticalRhythm';
 import { BlockParametersFlyout } from './components/BlockParametersFlyout';
 import {
   createRevisionSnapshot,
@@ -198,6 +204,17 @@ export default function App() {
     }
     return initial.blocks;
   });
+
+  // Automatic Vertical Rhythm Spacing State
+  const [autoVerticalRhythm, setAutoVerticalRhythm] = useState<boolean>(() => isAutoVerticalRhythmEnabled());
+
+  const handleToggleAutoVerticalRhythm = useCallback((enabled?: boolean) => {
+    setAutoVerticalRhythm((prev) => {
+      const next = enabled !== undefined ? enabled : !prev;
+      setAutoVerticalRhythmEnabled(next);
+      return next;
+    });
+  }, []);
 
   // Navigation & Viewport State
   const [viewport, setViewport] = useState<ViewportMode>('desktop');
@@ -738,7 +755,14 @@ export default function App() {
     const updated = [...blocks];
     const [moved] = updated.splice(idx, 1);
     updated.splice(idx - 1, 0, moved);
-    setBlocks(updated);
+
+    let finalBlocks = updated;
+    if (autoVerticalRhythm) {
+      const rhythm = applyLogicalVerticalRhythm(updated, theme);
+      finalBlocks = rhythm.updatedBlocks;
+    }
+
+    setBlocks(finalBlocks);
     triggerBlockAnimation(blockId, 'moved-up');
   };
 
@@ -749,7 +773,14 @@ export default function App() {
     const updated = [...blocks];
     const [moved] = updated.splice(idx, 1);
     updated.splice(idx + 1, 0, moved);
-    setBlocks(updated);
+
+    let finalBlocks = updated;
+    if (autoVerticalRhythm) {
+      const rhythm = applyLogicalVerticalRhythm(updated, theme);
+      finalBlocks = rhythm.updatedBlocks;
+    }
+
+    setBlocks(finalBlocks);
     triggerBlockAnimation(blockId, 'moved-down');
   };
 
@@ -768,7 +799,18 @@ export default function App() {
       const updated = [...blocks];
       const [movedBlock] = updated.splice(sourceIndex, 1);
       updated.splice(destinationIndex, 0, movedBlock);
-      setBlocks(updated);
+
+      let finalBlocks = updated;
+      let rhythmMsg = '';
+      if (autoVerticalRhythm) {
+        const rhythm = applyLogicalVerticalRhythm(updated, theme);
+        finalBlocks = rhythm.updatedBlocks;
+        if (rhythm.changesCount > 0) {
+          rhythmMsg = ` · Balanced spacing on ${rhythm.changesCount} block${rhythm.changesCount > 1 ? 's' : ''}`;
+        }
+      }
+
+      setBlocks(finalBlocks);
       setSelectedBlockId(movedBlock.id);
       triggerBlockAnimation(
         movedBlock.id,
@@ -776,13 +818,28 @@ export default function App() {
       );
       showToast({
         title: `Reordered "${movedBlock.name}"`,
-        description: `Moved section from #${sourceIndex + 1} to #${destinationIndex + 1} in canvas.`,
+        description: `Moved section from #${sourceIndex + 1} to #${destinationIndex + 1}${rhythmMsg}.`,
         actionLabel: 'Undo',
         onAction: handleUndo,
       });
     },
-    [blocks, pushHistory, triggerBlockAnimation, showToast, handleUndo]
+    [blocks, pushHistory, triggerBlockAnimation, showToast, handleUndo, autoVerticalRhythm, theme]
   );
+
+  const handleApplyVerticalRhythm = useCallback(() => {
+    pushHistory(blocks);
+    const result = applyLogicalVerticalRhythm(blocks, theme);
+    setBlocks(result.updatedBlocks);
+    showToast({
+      title: 'Vertical Rhythm Applied',
+      description:
+        result.changesCount > 0
+          ? `Adjusted margin-bottom on ${result.changesCount} block${result.changesCount > 1 ? 's' : ''} to match ${resolveThemeRhythmScale(theme)} theme rhythm.`
+          : 'All block margins are already in optimal vertical rhythm for this theme.',
+      actionLabel: result.changesCount > 0 ? 'Undo' : undefined,
+      onAction: result.changesCount > 0 ? handleUndo : undefined,
+    });
+  }, [blocks, theme, pushHistory, showToast, handleUndo]);
 
   const handleDuplicate = (blockId: string) => {
     const idx = blocks.findIndex((b) => b.id === blockId);
@@ -1150,6 +1207,34 @@ export default function App() {
     setSelectedBlockIds([newBlock.id]);
     triggerBlockAnimation(newBlock.id, 'added');
   };
+
+  const handleAddBlockAtIndex = useCallback(
+    (type: string, targetIndex: number) => {
+      pushHistory(blocks);
+      const newBlock = createNewBlock(type);
+      const updated = [...blocks];
+      const clamped = Math.max(0, Math.min(targetIndex, updated.length));
+      updated.splice(clamped, 0, newBlock);
+
+      let finalBlocks = updated;
+      if (autoVerticalRhythm) {
+        const rhythm = applyLogicalVerticalRhythm(updated, theme);
+        finalBlocks = rhythm.updatedBlocks;
+      }
+
+      setBlocks(finalBlocks);
+      setSelectedBlockId(newBlock.id);
+      setSelectedBlockIds([newBlock.id]);
+      triggerBlockAnimation(newBlock.id, 'added');
+      showToast({
+        title: `Added "${newBlock.name}"`,
+        description: `Inserted at slot #${clamped + 1} of ${finalBlocks.length} in canvas.`,
+        actionLabel: 'Undo',
+        onAction: handleUndo,
+      });
+    },
+    [blocks, pushHistory, triggerBlockAnimation, autoVerticalRhythm, theme, showToast, handleUndo]
+  );
 
   // Preset Handlers: Add block from preset & apply preset to block
   const handleAddPreset = useCallback(
@@ -1568,6 +1653,7 @@ export default function App() {
             setIsDesignModeOpen(true);
           }}
           onAddBlock={handleAddBlock}
+          onAddBlockAtIndex={handleAddBlockAtIndex}
           onAddSectionAtIndex={handleAddSectionAtIndex}
           onPasteLatestAtIndex={handlePasteLatestAtIndex}
           onAddBlankContainerAtIndex={handleAddBlankContainerAtIndex}
@@ -1576,6 +1662,9 @@ export default function App() {
           themeMode={themeMode}
           onOpenLivePreview={() => setIsLivePreviewModalOpen(true)}
           animationMeta={animationMeta}
+          autoVerticalRhythm={autoVerticalRhythm}
+          onToggleAutoVerticalRhythm={handleToggleAutoVerticalRhythm}
+          onApplyVerticalRhythm={handleApplyVerticalRhythm}
         />
 
         {/* Embedded Design Mode Dock / Sidebar (Right side by default, toggleable to Left) */}
@@ -1625,6 +1714,9 @@ export default function App() {
             }}
             onCloseViewer={() => setIsStudioViewerOpen(false)}
             showToast={showToast}
+            autoVerticalRhythm={autoVerticalRhythm}
+            onToggleAutoVerticalRhythm={handleToggleAutoVerticalRhythm}
+            onApplyVerticalRhythmToAll={handleApplyVerticalRhythm}
           />
         )}
       </div>

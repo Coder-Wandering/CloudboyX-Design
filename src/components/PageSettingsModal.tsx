@@ -36,6 +36,7 @@ import { calculateProjectAnalytics } from '../utils/projectAnalytics';
 import { GoogleSearchPreviewCard } from './GoogleSearchPreviewCard';
 import { SeoVisualMockup } from './SeoVisualMockup';
 import { SocialMediaCardPreviewModal } from './SocialMediaCardPreviewModal';
+import { SeoAuditSection } from './SeoAuditSection';
 
 interface PageSettingsModalProps {
   isOpen: boolean;
@@ -446,6 +447,19 @@ ${formData.twitterHandle ? `<meta name="twitter:site" content="${formData.twitte
                   <ChevronRight className="w-3 h-3" />
                 </button>
               </div>
+
+              {/* Automated SEO & Accessibility Audit */}
+              {blocks && blocks.length > 0 && (
+                <SeoAuditSection
+                  blocks={blocks}
+                  seoSettings={formData}
+                  projectTitle={projectTitle}
+                  onUpdateSeoSettings={(newSettings) => setFormData(newSettings)}
+                  onSelectBlock={onSelectBlock}
+                  themeMode="light"
+                />
+              )}
+
               {/* Page Title */}
               <div>
                 <div className="flex items-center justify-between mb-1.5">

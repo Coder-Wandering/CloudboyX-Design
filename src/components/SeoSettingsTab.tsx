@@ -27,6 +27,7 @@ import {
 import { SeoSettings, DEFAULT_SEO_SETTINGS, BlockInstance } from '../types';
 import { SeoVisualMockup } from './SeoVisualMockup';
 import { SocialMediaCardPreviewModal } from './SocialMediaCardPreviewModal';
+import { SeoAuditSection } from './SeoAuditSection';
 
 export interface SeoSettingsTabProps {
   seoSettings: SeoSettings;
@@ -36,6 +37,9 @@ export interface SeoSettingsTabProps {
   themeMode?: 'light' | 'dark';
   showToast?: (toast: { title: string; description?: string }) => void;
   blocks?: BlockInstance[];
+  onUpdateContent?: (blockId: string, content: Partial<BlockInstance['content']>) => void;
+  onSelectBlock?: (blockId: string) => void;
+  onAddBlock?: (blockType: string) => void;
 }
 
 const OG_IMAGE_PRESETS = [
@@ -108,6 +112,9 @@ export const SeoSettingsTab: React.FC<SeoSettingsTabProps> = ({
   themeMode = 'light',
   showToast,
   blocks = [],
+  onUpdateContent,
+  onSelectBlock,
+  onAddBlock,
 }) => {
   const isDark = themeMode === 'dark';
 
@@ -413,6 +420,20 @@ ${cleanHandle ? `<meta name="twitter:site" content="@${cleanHandle}">\n<meta nam
           </button>
         </div>
       </div>
+
+      {/* AUTOMATED SEO AUDIT SECTION (Analyzes blocks for meta tags, accessibility & hierarchy) */}
+      <SeoAuditSection
+        blocks={blocks}
+        seoSettings={seoSettings}
+        projectTitle={projectTitle}
+        onUpdateSeoSettings={onUpdateSeoSettings}
+        onUpdateProjectTitle={onUpdateProjectTitle}
+        onUpdateContent={onUpdateContent}
+        onSelectBlock={onSelectBlock}
+        onAddBlock={onAddBlock}
+        themeMode={themeMode}
+        showToast={showToast}
+      />
 
       {/* SECTION 1: PRIMARY SEO FIELDS */}
       <div className="space-y-4">

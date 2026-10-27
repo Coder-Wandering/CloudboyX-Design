@@ -40,6 +40,7 @@ import {
   BREAKPOINT_QUERY_MAP,
 } from '../engine/bootstrapCascade';
 import { ShortcutHint } from './ShortcutHint';
+import { QuickAddBlockPopover } from './QuickAddBlockPopover';
 
 interface CanvasFrameProps {
   blocks: BlockInstance[];
@@ -70,6 +71,7 @@ interface CanvasFrameProps {
   onInlineTextChange: (blockId: string, field: string, value: string) => void;
   onOpenLibrary: () => void;
   onAddBlock: (blockType: string) => void;
+  onAddBlockAtIndex?: (blockType: string, index: number) => void;
   onAddSectionAtIndex?: (index: number) => void;
   onPasteLatestAtIndex?: (index: number) => void;
   onAddBlankContainerAtIndex?: (index: number) => void;
@@ -82,6 +84,9 @@ interface CanvasFrameProps {
   onOpenClipboard?: () => void;
   clipboardCount?: number;
   animationMeta?: BlockAnimationMeta | null;
+  autoVerticalRhythm?: boolean;
+  onToggleAutoVerticalRhythm?: () => void;
+  onApplyVerticalRhythm?: () => void;
 }
 
 const BREAKPOINT_DEVICE_ICONS: Record<Breakpoint, React.ElementType> = {
@@ -157,6 +162,7 @@ interface AddSectionDropdownMenuProps {
   index: number;
   isOpen: boolean;
   onClose: () => void;
+  onOpenQuickAdd?: (index: number) => void;
   onAddFromLibrary: (index: number) => void;
   onPasteFromClipboard: (index: number) => void;
   onAddBlankContainer: (index: number) => void;
@@ -169,6 +175,7 @@ const AddSectionDropdownMenu: React.FC<AddSectionDropdownMenuProps> = ({
   index,
   isOpen,
   onClose,
+  onOpenQuickAdd,
   onAddFromLibrary,
   onPasteFromClipboard,
   onAddBlankContainer,
@@ -219,7 +226,7 @@ const AddSectionDropdownMenu: React.FC<AddSectionDropdownMenuProps> = ({
       role="menu"
       aria-label="Add Section Menu"
       onClick={(e) => e.stopPropagation()}
-      className={`absolute top-full mt-2.5 ${alignClass} z-50 min-w-[240px] rounded-2xl p-1.5 shadow-2xl border backdrop-blur-md animate-in fade-in zoom-in-95 duration-150 select-none ${
+      className={`absolute top-full mt-2.5 ${alignClass} z-50 min-w-[245px] rounded-2xl p-1.5 shadow-2xl border backdrop-blur-md animate-in fade-in zoom-in-95 duration-150 select-none ${
         isDark
           ? 'bg-slate-900/98 border-slate-700/80 text-slate-100 shadow-cyan-950/70 ring-1 ring-cyan-500/20'
           : 'bg-white/98 border-slate-200 text-slate-900 shadow-blue-500/15 ring-1 ring-blue-500/10'
@@ -244,6 +251,44 @@ const AddSectionDropdownMenu: React.FC<AddSectionDropdownMenuProps> = ({
       </div>
 
       <div className="flex flex-col gap-1">
+        {/* Option 0: Direct Quick Add Popover with live search & categories */}
+        {onOpenQuickAdd && (
+          <button
+            type="button"
+            role="menuitem"
+            onClick={(e) => {
+              e.stopPropagation();
+              onOpenQuickAdd(index);
+              onClose();
+            }}
+            className={`w-full group flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-left transition cursor-pointer border ${
+              isDark
+                ? 'bg-cyan-500/15 hover:bg-cyan-500/25 text-cyan-200 border-cyan-500/30'
+                : 'bg-blue-50/90 hover:bg-blue-100 text-blue-800 border-blue-200'
+            }`}
+          >
+            <span
+              className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 transition-transform duration-200 group-hover:scale-110 ${
+                isDark
+                  ? 'bg-cyan-400/20 text-cyan-300 ring-1 ring-cyan-400/50'
+                  : 'bg-blue-600 text-white shadow-xs'
+              }`}
+            >
+              <Sparkles className="w-4 h-4 stroke-[2.2]" />
+            </span>
+            <div className="flex-1 min-w-0">
+              <div className="text-xs font-bold leading-tight flex items-center justify-between">
+                <span>Quick Add Popover</span>
+                <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-cyan-500/20 text-cyan-500 dark:text-cyan-300">
+                  ⚡ 1-Click
+                </span>
+              </div>
+              <div className="text-[10px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
+                Instant search & category cards
+              </div>
+            </div>
+          </button>
+        )}
         {/* Option 1: Add from Library */}
         <button
           type="button"
@@ -360,6 +405,7 @@ const AddSectionDropdownMenu: React.FC<AddSectionDropdownMenuProps> = ({
 // Interactive '+ Add Section Here' Divider Inserter component for Canvas Agile Ruler
 const AddSectionPillDivider: React.FC<{
   index: number;
+  onOpenQuickAdd?: (index: number) => void;
   onAddFromLibrary: (index: number) => void;
   onPasteFromClipboard: (index: number) => void;
   onAddBlankContainer: (index: number) => void;
@@ -368,6 +414,7 @@ const AddSectionPillDivider: React.FC<{
   clipboardCount?: number;
 }> = ({
   index,
+  onOpenQuickAdd,
   onAddFromLibrary,
   onPasteFromClipboard,
   onAddBlankContainer,
@@ -440,6 +487,7 @@ const AddSectionPillDivider: React.FC<{
         index={index}
         isOpen={isDropdownOpen}
         onClose={() => setIsDropdownOpen(false)}
+        onOpenQuickAdd={onOpenQuickAdd}
         onAddFromLibrary={onAddFromLibrary}
         onPasteFromClipboard={onPasteFromClipboard}
         onAddBlankContainer={onAddBlankContainer}
@@ -454,6 +502,7 @@ const AddSectionPillDivider: React.FC<{
 // Interactive '+ Add Section Here' Divider component for vertical Canvas Sections Stack
 const CanvasVerticalAddSectionDivider: React.FC<{
   index: number;
+  onOpenQuickAdd?: (index: number) => void;
   onAddFromLibrary: (index: number) => void;
   onPasteFromClipboard: (index: number) => void;
   onAddBlankContainer: (index: number) => void;
@@ -463,6 +512,7 @@ const CanvasVerticalAddSectionDivider: React.FC<{
   clipboardCount?: number;
 }> = ({
   index,
+  onOpenQuickAdd,
   onAddFromLibrary,
   onPasteFromClipboard,
   onAddBlankContainer,
@@ -557,6 +607,7 @@ const CanvasVerticalAddSectionDivider: React.FC<{
         index={index}
         isOpen={isDropdownOpen}
         onClose={() => setIsDropdownOpen(false)}
+        onOpenQuickAdd={onOpenQuickAdd}
         onAddFromLibrary={onAddFromLibrary}
         onPasteFromClipboard={onPasteFromClipboard}
         onAddBlankContainer={onAddBlankContainer}
@@ -597,6 +648,7 @@ export const CanvasFrame: React.FC<CanvasFrameProps> = ({
   onInlineTextChange,
   onOpenLibrary,
   onAddBlock,
+  onAddBlockAtIndex,
   onAddSectionAtIndex,
   onPasteLatestAtIndex,
   onAddBlankContainerAtIndex,
@@ -609,11 +661,27 @@ export const CanvasFrame: React.FC<CanvasFrameProps> = ({
   onOpenClipboard,
   clipboardCount = 0,
   animationMeta,
+  autoVerticalRhythm = true,
+  onToggleAutoVerticalRhythm,
+  onApplyVerticalRhythm,
 }) => {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [isDragOver, setIsDragOver] = useState(false);
   const [showCascadeInfo, setShowCascadeInfo] = useState(false);
   const [isSectionRailOpen, setIsSectionRailOpen] = useState(false);
+
+  // Quick Add Block Popover state
+  const [quickAddPopoverState, setQuickAddPopoverState] = useState<{
+    isOpen: boolean;
+    insertIndex: number;
+  }>({
+    isOpen: false,
+    insertIndex: 0,
+  });
+
+  const handleOpenQuickAdd = (index: number) => {
+    setQuickAddPopoverState({ isOpen: true, insertIndex: index });
+  };
 
   // Granular block insertion handlers used by '+ Add Section Here' divider dropdowns
   const handleExecuteAddFromLibrary = (index: number) => {
@@ -923,6 +991,22 @@ export const CanvasFrame: React.FC<CanvasFrameProps> = ({
         onDelete(e.data.blockId);
       }
 
+      if (e.data.type === 'OPEN_QUICK_ADD_POPOVER') {
+        const targetIndex = typeof e.data.insertIndex === 'number' ? e.data.insertIndex : blocks.length;
+        handleOpenQuickAdd(targetIndex);
+      }
+
+      if (e.data.type === 'ADD_BLOCK_AT_INDEX') {
+        const targetIndex = typeof e.data.insertIndex === 'number' ? e.data.insertIndex : blocks.length;
+        if (e.data.blockType) {
+          if (onAddBlockAtIndex) {
+            onAddBlockAtIndex(e.data.blockType, targetIndex);
+          } else {
+            onAddBlock(e.data.blockType);
+          }
+        }
+      }
+
       if (e.data.type === 'ADD_SECTION_AT_INDEX') {
         const targetIndex = typeof e.data.insertIndex === 'number' ? e.data.insertIndex : blocks.length;
         handleExecuteAddFromLibrary(targetIndex);
@@ -1010,6 +1094,7 @@ export const CanvasFrame: React.FC<CanvasFrameProps> = ({
     onAddBlankContainerAtIndex,
     onOpenLibrary,
     onAddBlock,
+    onAddBlockAtIndex,
     onInlineTextChange,
     selectedBlockId,
     onCopyBlock,
@@ -1162,6 +1247,7 @@ export const CanvasFrame: React.FC<CanvasFrameProps> = ({
               {/* Slot #1: Add Section at Top */}
               <AddSectionPillDivider
                 index={0}
+                onOpenQuickAdd={handleOpenQuickAdd}
                 onAddFromLibrary={handleExecuteAddFromLibrary}
                 onPasteFromClipboard={handleExecutePasteFromClipboard}
                 onAddBlankContainer={handleExecuteAddBlankContainer}
@@ -1219,6 +1305,7 @@ export const CanvasFrame: React.FC<CanvasFrameProps> = ({
                     {/* Interactive '+ Add Section Here' Divider between each block */}
                     <AddSectionPillDivider
                       index={index + 1}
+                      onOpenQuickAdd={handleOpenQuickAdd}
                       onAddFromLibrary={handleExecuteAddFromLibrary}
                       onPasteFromClipboard={handleExecutePasteFromClipboard}
                       onAddBlankContainer={handleExecuteAddBlankContainer}
@@ -1323,6 +1410,55 @@ export const CanvasFrame: React.FC<CanvasFrameProps> = ({
                 {isGridOverlayEnabled ? 'ON' : 'OFF'}
               </span>
             </button>
+
+            {/* Auto Vertical Rhythm Spacing Mode Toggle */}
+            {onToggleAutoVerticalRhythm && (
+              <button
+                type="button"
+                id="canvas-auto-rhythm-toggle-btn"
+                onClick={onToggleAutoVerticalRhythm}
+                onDoubleClick={onApplyVerticalRhythm}
+                className={`flex items-center gap-1.5 px-2 py-0.5 rounded-lg text-[11px] font-semibold transition cursor-pointer border ${
+                  autoVerticalRhythm
+                    ? isDark
+                      ? 'bg-blue-600/20 text-blue-300 border-blue-500/50 shadow-xs'
+                      : 'bg-blue-50 text-blue-700 border-blue-300 shadow-xs'
+                    : isDark
+                    ? 'text-slate-400 hover:text-slate-200 hover:bg-slate-800 border-slate-800'
+                    : 'text-slate-500 hover:text-slate-800 hover:bg-slate-100 border-slate-200'
+                }`}
+                title={
+                  autoVerticalRhythm
+                    ? 'Auto Vertical Rhythm Active: Calculates and applies logical margin-bottom spacing when reordering blocks (Click to toggle • Double-click to auto-balance all blocks)'
+                    : 'Auto Vertical Rhythm Disabled (Click to activate auto-spacing calculation)'
+                }
+                aria-label="Toggle auto vertical rhythm spacing calculation"
+              >
+                <Sliders
+                  className={`w-3.5 h-3.5 ${
+                    autoVerticalRhythm
+                      ? isDark
+                        ? 'text-blue-400'
+                        : 'text-blue-600'
+                      : 'text-slate-400'
+                  }`}
+                />
+                <span className="hidden xl:inline">Auto Spacing</span>
+                <span
+                  className={`text-[9.5px] font-bold px-1.5 py-0.2 rounded-full font-mono ${
+                    autoVerticalRhythm
+                      ? isDark
+                        ? 'bg-blue-950 text-blue-300 border border-blue-800'
+                        : 'bg-blue-100 text-blue-700 border border-blue-200'
+                      : isDark
+                      ? 'bg-slate-800 text-slate-400'
+                      : 'bg-slate-200 text-slate-600'
+                  }`}
+                >
+                  {autoVerticalRhythm ? 'ON' : 'OFF'}
+                </span>
+              </button>
+            )}
 
             {/* Canvas Sections Outline & Inserters Toggle */}
             <button
@@ -1572,6 +1708,7 @@ export const CanvasFrame: React.FC<CanvasFrameProps> = ({
             {/* Inserter at slot 0 (Top) */}
             <CanvasVerticalAddSectionDivider
               index={0}
+              onOpenQuickAdd={handleOpenQuickAdd}
               onAddFromLibrary={handleExecuteAddFromLibrary}
               onPasteFromClipboard={handleExecutePasteFromClipboard}
               onAddBlankContainer={handleExecuteAddBlankContainer}
@@ -1612,6 +1749,7 @@ export const CanvasFrame: React.FC<CanvasFrameProps> = ({
                   {/* Interactive '+ Add Section Here' Divider between each block */}
                   <CanvasVerticalAddSectionDivider
                     index={index + 1}
+                    onOpenQuickAdd={handleOpenQuickAdd}
                     onAddFromLibrary={handleExecuteAddFromLibrary}
                     onPasteFromClipboard={handleExecutePasteFromClipboard}
                     onAddBlankContainer={handleExecuteAddBlankContainer}
@@ -1893,6 +2031,37 @@ export const CanvasFrame: React.FC<CanvasFrameProps> = ({
           </span>
         </button>
       )}
+
+      {/* Quick Add Block Popover Modal (visual hover boundary overlay insertion) */}
+      <QuickAddBlockPopover
+        isOpen={quickAddPopoverState.isOpen}
+        onClose={() => setQuickAddPopoverState((prev) => ({ ...prev, isOpen: false }))}
+        insertIndex={quickAddPopoverState.insertIndex}
+        totalBlocks={blocks.length}
+        precedingBlock={
+          quickAddPopoverState.insertIndex > 0
+            ? blocks[quickAddPopoverState.insertIndex - 1]
+            : null
+        }
+        followingBlock={
+          quickAddPopoverState.insertIndex < blocks.length
+            ? blocks[quickAddPopoverState.insertIndex]
+            : null
+        }
+        onAddBlockAtIndex={(type, idx) => {
+          if (onAddBlockAtIndex) {
+            onAddBlockAtIndex(type, idx);
+          } else {
+            onAddBlock(type);
+          }
+        }}
+        onPasteFromClipboard={handleExecutePasteFromClipboard}
+        onAddBlankContainer={handleExecuteAddBlankContainer}
+        onOpenFullLibrary={handleExecuteAddFromLibrary}
+        clipboardCount={clipboardCount}
+        theme={theme}
+        themeMode={themeMode}
+      />
     </div>
   );
 };

@@ -82,6 +82,13 @@ export function getBlockLayoutInfo(blockType: string): BlockLayoutInfo {
         responsiveBehavior: '1 column on mobile, 2 on tablet, 3 on desktop',
         elements: ['Curated Photo Cards', 'Image Aspect Frame', 'Project Title & Category Chips', 'Hover Shadows'],
       };
+    case 'media-carousel':
+      return {
+        pattern: 'Interactive Media Carousel',
+        columns: 'Full-Width Responsive Slider',
+        responsiveBehavior: 'Touch-swipeable carousel adapting from mobile to ultrawide 16:9 ratio',
+        elements: ['HTML5 Video & Image Slides', 'Streaming YouTube / Vimeo', 'Aspect Ratio Container', 'Autoplay & Controls', 'Caption Overlay'],
+      };
     case 'testimonials-cards':
       return {
         pattern: '3-Column Testimonial Cards',
@@ -624,6 +631,36 @@ export const BlockThumbnail: React.FC<BlockThumbnailProps> = ({
                   <span className="w-3/4 h-1 rounded-xs bg-slate-500/80 absolute bottom-1 left-1" />
                 </div>
               ))}
+            </div>
+          </div>
+        );
+
+      case 'media-carousel':
+        return (
+          <div className="w-full h-full p-2.5 flex flex-col justify-between bg-slate-900 select-none text-white relative overflow-hidden">
+            <div className="flex items-center justify-between mb-1 px-1">
+              <span className="w-20 h-1.5 rounded-xs bg-slate-400" />
+              <span className="text-[8px] font-mono px-1.5 py-0.2 rounded bg-blue-600 text-white font-bold">MEDIA</span>
+            </div>
+
+            {/* Carousel slide frame */}
+            <div className="w-full flex-1 rounded-lg bg-slate-800 border border-slate-700/80 relative overflow-hidden flex items-center justify-center shadow-inner">
+              <div className="w-7 h-7 rounded-full bg-blue-600 text-white flex items-center justify-center text-xs shadow-md pl-0.5">
+                ▶
+              </div>
+              {/* Prev / Next Chevrons */}
+              <div className="absolute left-1.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 rounded-full bg-black/60 flex items-center justify-center text-[10px] text-white">
+                ‹
+              </div>
+              <div className="absolute right-1.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 rounded-full bg-black/60 flex items-center justify-center text-[10px] text-white">
+                ›
+              </div>
+              {/* Slide indicators dots */}
+              <div className="absolute bottom-1.5 left-1/2 -translate-x-1/2 flex gap-1">
+                <span className="w-3 h-1 rounded-full bg-white" />
+                <span className="w-1 h-1 rounded-full bg-white/40" />
+                <span className="w-1 h-1 rounded-full bg-white/40" />
+              </div>
             </div>
           </div>
         );

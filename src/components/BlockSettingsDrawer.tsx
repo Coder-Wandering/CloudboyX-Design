@@ -36,6 +36,7 @@ import { BlockSpacingPanel } from './BlockSpacingPanel';
 import { BlockShadowsPanel } from './BlockShadowsPanel';
 import { ResponsiveInspectorHud } from './ResponsiveInspectorHud';
 import { SectionDividerEditor } from './SectionDividerEditor';
+import { MediaCarouselEditor } from './MediaCarouselEditor';
 import {
   Breakpoint,
   VisualNode,
@@ -72,6 +73,9 @@ interface BlockSettingsDrawerProps {
   isEmbedded?: boolean;
   themeMode?: 'light' | 'dark';
   theme?: SiteTheme;
+  autoVerticalRhythm?: boolean;
+  onToggleAutoVerticalRhythm?: (enabled?: boolean) => void;
+  onApplyVerticalRhythmToAll?: () => void;
 }
 
 export const BlockSettingsDrawer: React.FC<BlockSettingsDrawerProps> = ({
@@ -95,6 +99,9 @@ export const BlockSettingsDrawer: React.FC<BlockSettingsDrawerProps> = ({
   isEmbedded = true,
   themeMode = 'light',
   theme,
+  autoVerticalRhythm,
+  onToggleAutoVerticalRhythm,
+  onApplyVerticalRhythmToAll,
 }) => {
   const [activeTab, setActiveTab] = useState<BlockControlTab>('content');
   const contentFileInputRef = useRef<HTMLInputElement>(null);
@@ -515,6 +522,18 @@ export const BlockSettingsDrawer: React.FC<BlockSettingsDrawerProps> = ({
               </div>
             )}
 
+            {/* Specialized Media Carousel (Video & Image) Controls */}
+            {block.type === 'media-carousel' && (
+              <div className="mb-4">
+                <MediaCarouselEditor
+                  block={block}
+                  onUpdateContent={(updatedContent) => onUpdateContent(block.id, updatedContent)}
+                  onUpdateSettings={(updatedSettings) => onUpdateSettings(block.id, updatedSettings)}
+                  isDark={isDark}
+                />
+              </div>
+            )}
+
             <div
               className={`p-4 rounded-xl border shadow-xs space-y-4 ${
                 isDark ? 'bg-slate-900/90 border-slate-800' : 'bg-white border-slate-200/80'
@@ -815,6 +834,11 @@ export const BlockSettingsDrawer: React.FC<BlockSettingsDrawerProps> = ({
               onUpdateSettings={(newSettings) => onUpdateSettings(block.id, newSettings)}
               blockId={block.id}
               activeBreakpoint={activeBreakpoint}
+              blocks={blocks}
+              theme={theme}
+              autoVerticalRhythm={autoVerticalRhythm}
+              onToggleAutoVerticalRhythm={onToggleAutoVerticalRhythm}
+              onApplyVerticalRhythmToAll={onApplyVerticalRhythmToAll}
             />
           </div>
         )}

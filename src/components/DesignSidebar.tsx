@@ -152,6 +152,9 @@ interface DesignSidebarProps {
     actionLabel?: string;
     onAction?: () => void;
   }) => void;
+  autoVerticalRhythm?: boolean;
+  onToggleAutoVerticalRhythm?: (enabled?: boolean) => void;
+  onApplyVerticalRhythmToAll?: () => void;
 }
 
 export const DesignSidebar: React.FC<DesignSidebarProps> = ({
@@ -194,6 +197,9 @@ export const DesignSidebar: React.FC<DesignSidebarProps> = ({
   onOpenViewer,
   onCloseViewer,
   showToast,
+  autoVerticalRhythm,
+  onToggleAutoVerticalRhythm,
+  onApplyVerticalRhythmToAll,
 }) => {
   const [displayMode, setDisplayMode] = useState<'popup' | 'docked'>('docked');
   const [blockFilterQuery, setBlockFilterQuery] = useState('');
@@ -1302,6 +1308,9 @@ export const DesignSidebar: React.FC<DesignSidebarProps> = ({
               onOpenLibrary={() => onSelectTab('blocks')}
               isEmbedded={true}
               themeMode={themeMode}
+              autoVerticalRhythm={autoVerticalRhythm}
+              onToggleAutoVerticalRhythm={onToggleAutoVerticalRhythm}
+              onApplyVerticalRhythmToAll={onApplyVerticalRhythmToAll}
             />
           </div>
         )}
@@ -1354,6 +1363,9 @@ export const DesignSidebar: React.FC<DesignSidebarProps> = ({
               themeMode={themeMode}
               showToast={showToast}
               blocks={blocks}
+              onUpdateContent={onUpdateContent}
+              onSelectBlock={onSelectBlock}
+              onAddBlock={onAddBlock}
             />
           </div>
         )}
