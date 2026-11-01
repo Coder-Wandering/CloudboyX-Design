@@ -62,10 +62,15 @@ export const GlobalBlockSearch: React.FC<GlobalBlockSearchProps> = ({
   const inputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Global hotkey Ctrl+K / Cmd+K to focus search
+  // Hotkey '/' to focus block filter (when not in input)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+      const activeEl = document.activeElement;
+      const isInput =
+        activeEl?.tagName === 'INPUT' ||
+        activeEl?.tagName === 'TEXTAREA' ||
+        (activeEl as HTMLElement)?.isContentEditable;
+      if (e.key === '/' && !e.ctrlKey && !e.metaKey && !isInput) {
         e.preventDefault();
         inputRef.current?.focus();
         setIsOpen(true);

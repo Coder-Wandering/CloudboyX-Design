@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Settings,
   X,
@@ -23,8 +23,21 @@ import {
   Columns3,
   Layers,
   SlidersHorizontal,
+  Paintbrush,
+  ClipboardPaste,
+  FileJson,
+  Braces,
+  Info,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
-import { BlockInstance, SiteTheme } from '../types';
+import {
+  BlockInstance,
+  SiteTheme,
+  BlockSettings,
+  BlockStyleClipboardItem,
+  STYLE_CLIPBOARD_STORAGE_KEY,
+} from '../types';
 
 interface BlockParametersFlyoutProps {
   isOpen: boolean;
@@ -41,6 +54,13 @@ interface BlockParametersFlyoutProps {
   onOpenDesignStudio?: (tab?: string) => void;
   themeMode?: 'light' | 'dark';
   theme?: SiteTheme;
+  showToast?: (toast: {
+    title: string;
+    description?: string;
+    actionLabel?: string;
+    onAction?: () => void;
+  }) => void;
+  onSaveCustomCode?: (blockId: string, customHtml: string, customCss: string) => void;
 }
 
 const COLOR_SWATCHES = [
@@ -110,12 +130,72 @@ const PRESET_IMAGES = [
   },
 ];
 
+const STYLE_SETTINGS_KEYS: (keyof BlockSettings)[] = [
+  'bgType',
+  'bgColor',
+  'backgroundColor',
+  'backgroundGradient',
+  'bgImage',
+  'backgroundImage',
+  'bgOverlay',
+  'bgOverlayOpacity',
+  'bgOverlayColor',
+  'bgSize',
+  'bgPosition',
+  'bgRepeat',
+  'bgParallax',
+  'paddingTop',
+  'paddingBottom',
+  'paddingLeft',
+  'paddingRight',
+  'marginTop',
+  'marginBottom',
+  'marginLeft',
+  'marginRight',
+  'containerWidth',
+  'textColor',
+  'textAlign',
+  'darkSection',
+  'fullHeight',
+  'cardShadow',
+  'shadow',
+  'gutterSize',
+  'justifyContent',
+  'alignItems',
+  'cardHeight',
+  'buttonVariant',
+  'buttonPill',
+];
+
+function generateStyleSummary(settings: Partial<BlockSettings>) {
+  let bgDesc = 'Default Color';
+  if (settings.bgType === 'gradient' || settings.backgroundGradient) {
+    bgDesc = 'Gradient Bg';
+  } else if (settings.bgType === 'image' || settings.backgroundImage || settings.bgImage) {
+    bgDesc = 'Image Bg';
+  } else if (settings.bgColor || settings.backgroundColor) {
+    bgDesc = `Color: ${settings.bgColor || settings.backgroundColor}`;
+  }
+
+  const pTop = settings.paddingTop !== undefined ? settings.paddingTop : 4;
+  const pBottom = settings.paddingBottom !== undefined ? settings.paddingBottom : 4;
+  const paddingDesc = `Pad: ${pTop}/${pBottom}`;
+
+  return {
+    bgDesc,
+    paddingDesc,
+    textColor: settings.textColor === 'light' ? 'Light Text' : 'Dark Text',
+    textAlign: settings.textAlign ? `Align: ${settings.textAlign}` : 'Align: Default',
+  };
+}
+
 export const BlockParametersFlyout: React.FC<BlockParametersFlyoutProps> = ({
   isOpen,
   onClose,
   block,
   blocks,
   onUpdateSettings,
+  onUpdateContent,
   onMoveUp,
   onMoveDown,
   onDuplicate,
@@ -123,9 +203,199 @@ export const BlockParametersFlyout: React.FC<BlockParametersFlyoutProps> = ({
   onOpenCodeEditor,
   onOpenDesignStudio,
   themeMode = 'light',
+  theme,
+  showToast,
+  onSaveCustomCode,
 }) => {
   const [bgTab, setBgTab] = useState<'color' | 'gradient' | 'image'>('color');
   const [confirmDelete, setConfirmDelete] = useState(false);
+
+  // Specialized Style Clipboard State (persists in localStorage)
+  const [styleClipboard, setStyleClipboard] = useState<BlockStyleClipboardItem | null>(() => {
+    try {
+      const saved = localStorage.getItem(STYLE_CLIPBOARD_STORAGE_KEY);
+      if (saved) return JSON.parse(saved);
+    } catch (e) {
+      // ignore
+    }
+    return null;
+  });
+
+  const [copyStyleSuccess, setCopyStyleSuccess] = useState(false);
+  const [pasteStyleSuccess, setPasteStyleSuccess] = useState(false);
+  const [copyJsonSuccess, setCopyJsonSuccess] = useState(false);
+  const [isJsonPreviewOpen, setIsJsonPreviewOpen] = useState(false);
+
+  // Synchronize style clipboard across instances and tabs
+  useEffect(() => {
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === STYLE_CLIPBOARD_STORAGE_KEY) {
+        try {
+          setStyleClipboard(e.newValue ? JSON.parse(e.newValue) : null);
+        } catch {
+          setStyleClipboard(null);
+        }
+      }
+    };
+    const handleCustomEvent = (e: any) => {
+      if (e.detail !== undefined) {
+        setStyleClipboard(e.detail);
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    window.addEventListener('cloudboyx:style-clipboard-updated', handleCustomEvent);
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('cloudboyx:style-clipboard-updated', handleCustomEvent);
+    };
+  }, []);
+
+  // Copy Style handler
+  const handleCopyStyle = useCallback(() => {
+    if (!block) return;
+    const extractedSettings: Partial<BlockSettings> = {};
+    STYLE_SETTINGS_KEYS.forEach((key) => {
+      if (block.settings && block.settings[key] !== undefined) {
+        (extractedSettings as any)[key] = block.settings[key];
+      }
+    });
+
+    const snapshot: BlockStyleClipboardItem = {
+      sourceBlockId: block.id,
+      sourceBlockName: block.name,
+      sourceBlockType: block.type,
+      copiedAt: Date.now(),
+      settings: extractedSettings,
+      customCss: block.customCss,
+      summary: generateStyleSummary(extractedSettings),
+    };
+
+    setStyleClipboard(snapshot);
+    try {
+      localStorage.setItem(STYLE_CLIPBOARD_STORAGE_KEY, JSON.stringify(snapshot));
+      window.dispatchEvent(
+        new CustomEvent('cloudboyx:style-clipboard-updated', { detail: snapshot })
+      );
+    } catch (e) {
+      console.warn('Failed to save style to localStorage', e);
+    }
+
+    try {
+      if (navigator.clipboard?.writeText) {
+        const cssSummary =
+          `/* Style copied from ${block.name} (${block.type}) */\n` +
+          JSON.stringify(extractedSettings, null, 2);
+        navigator.clipboard.writeText(cssSummary).catch(() => {});
+      }
+    } catch (e) {}
+
+    setCopyStyleSuccess(true);
+    setTimeout(() => setCopyStyleSuccess(false), 2200);
+
+    if (showToast) {
+      showToast({
+        title: `Copied Style: "${block.name}"`,
+        description:
+          'Style properties copied to specialized clipboard. Open another block to Paste Style.',
+      });
+    }
+  }, [block, showToast]);
+
+  // Paste Style handler
+  const handlePasteStyle = useCallback(() => {
+    if (!block || !styleClipboard) return;
+
+    onUpdateSettings(block.id, styleClipboard.settings);
+
+    if (styleClipboard.customCss && onSaveCustomCode) {
+      onSaveCustomCode(block.id, block.customHtml || '', styleClipboard.customCss);
+    }
+
+    setPasteStyleSuccess(true);
+    setTimeout(() => setPasteStyleSuccess(false), 2200);
+
+    if (showToast) {
+      showToast({
+        title: 'Style Pasted!',
+        description: `Applied visual style properties from "${styleClipboard.sourceBlockName}" onto "${block.name}".`,
+      });
+    }
+  }, [block, styleClipboard, onUpdateSettings, onSaveCustomCode, showToast]);
+
+  // Clear Style Clipboard
+  const handleClearStyleClipboard = useCallback(() => {
+    setStyleClipboard(null);
+    try {
+      localStorage.removeItem(STYLE_CLIPBOARD_STORAGE_KEY);
+      window.dispatchEvent(
+        new CustomEvent('cloudboyx:style-clipboard-updated', { detail: null })
+      );
+    } catch (e) {}
+
+    if (showToast) {
+      showToast({
+        title: 'Style Clipboard Cleared',
+        description: 'Removed stored style properties snapshot.',
+      });
+    }
+  }, [showToast]);
+
+  // Copy JSON handler (exports entire block definition)
+  const handleCopyJson = useCallback(async () => {
+    if (!block) return;
+
+    const blockJson = {
+      id: block.id,
+      type: block.type,
+      category: block.category,
+      name: block.name,
+      settings: block.settings || {},
+      content: block.content || {},
+      visualNode: block.visualNode,
+      customHtml: block.customHtml,
+      customCss: block.customCss,
+      comments: block.comments,
+    };
+
+    const formattedJson = JSON.stringify(blockJson, null, 2);
+
+    let copied = false;
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(formattedJson);
+        copied = true;
+      }
+    } catch (err) {
+      console.warn('navigator.clipboard.writeText failed', err);
+    }
+
+    if (!copied) {
+      try {
+        const textarea = document.createElement('textarea');
+        textarea.value = formattedJson;
+        textarea.style.position = 'fixed';
+        textarea.style.opacity = '0';
+        document.body.appendChild(textarea);
+        textarea.focus();
+        textarea.select();
+        copied = document.execCommand('copy');
+        document.body.removeChild(textarea);
+      } catch (err) {
+        console.error('Fallback copy failed', err);
+      }
+    }
+
+    setCopyJsonSuccess(true);
+    setTimeout(() => setCopyJsonSuccess(false), 2500);
+
+    if (showToast) {
+      showToast({
+        title: 'Block JSON Copied',
+        description: `Full block definition for "${block.name}" (content, settings & visualNode) copied to clipboard for developer use.`,
+      });
+    }
+  }, [block, showToast]);
 
   if (!isOpen || !block) return null;
 
@@ -220,7 +490,9 @@ export const BlockParametersFlyout: React.FC<BlockParametersFlyoutProps> = ({
             type="button"
             onClick={onClose}
             className={`p-1.5 rounded-lg transition cursor-pointer ${
-              isDark ? 'hover:bg-slate-800 text-slate-400 hover:text-white' : 'hover:bg-slate-200 text-slate-500 hover:text-slate-900'
+              isDark
+                ? 'hover:bg-slate-800 text-slate-400 hover:text-white'
+                : 'hover:bg-slate-200 text-slate-500 hover:text-slate-900'
             }`}
             title="Close Block Parameters (Esc)"
           >
@@ -228,6 +500,110 @@ export const BlockParametersFlyout: React.FC<BlockParametersFlyoutProps> = ({
           </button>
         </div>
       </div>
+
+      {/* QUICK UTILITY ACTION BAR: Copy Style | Paste Style | Copy JSON */}
+      <div
+        className={`px-3 py-2 border-b shrink-0 flex items-center justify-between gap-1.5 select-none text-[11px] ${
+          isDark
+            ? 'bg-slate-950/60 border-slate-800 text-slate-300'
+            : 'bg-slate-100/80 border-slate-200 text-slate-700'
+        }`}
+      >
+        <div className="flex items-center gap-1.5 flex-1 min-w-0">
+          {/* Copy Style Button */}
+          <button
+            type="button"
+            id="flyout-copy-style-btn"
+            onClick={handleCopyStyle}
+            className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-lg font-bold transition cursor-pointer border ${
+              copyStyleSuccess
+                ? 'bg-emerald-600 border-emerald-500 text-white shadow-xs'
+                : isDark
+                ? 'bg-slate-900 hover:bg-slate-800 border-slate-700 text-slate-200 hover:text-white'
+                : 'bg-white hover:bg-slate-50 border-slate-200 text-slate-700 shadow-2xs'
+            }`}
+            title="Copy style properties (backgrounds, paddings, text color, shadows, margins) to specialized clipboard"
+          >
+            {copyStyleSuccess ? (
+              <>
+                <Check className="w-3.5 h-3.5 text-white" />
+                <span className="truncate">Copied!</span>
+              </>
+            ) : (
+              <>
+                <Paintbrush className="w-3.5 h-3.5 text-indigo-400" />
+                <span className="truncate">Copy Style</span>
+              </>
+            )}
+          </button>
+
+          {/* Paste Style Button */}
+          <button
+            type="button"
+            id="flyout-paste-style-btn"
+            onClick={handlePasteStyle}
+            disabled={!styleClipboard}
+            className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-lg font-bold transition border ${
+              pasteStyleSuccess
+                ? 'bg-emerald-600 border-emerald-500 text-white shadow-xs'
+                : styleClipboard
+                ? isDark
+                  ? 'bg-indigo-950/70 hover:bg-indigo-900 border-indigo-500/50 text-indigo-200 cursor-pointer shadow-xs'
+                  : 'bg-indigo-50 hover:bg-indigo-100 border-indigo-200 text-indigo-700 cursor-pointer shadow-2xs'
+                : 'opacity-40 cursor-not-allowed border-transparent bg-slate-500/10 text-slate-400'
+            }`}
+            title={
+              styleClipboard
+                ? `Paste style from "${styleClipboard.sourceBlockName}" onto this section`
+                : 'No style in clipboard. Click "Copy Style" on any block first.'
+            }
+          >
+            {pasteStyleSuccess ? (
+              <>
+                <Check className="w-3.5 h-3.5 text-white" />
+                <span className="truncate">Pasted!</span>
+              </>
+            ) : (
+              <>
+                <ClipboardPaste
+                  className={`w-3.5 h-3.5 ${
+                    styleClipboard ? 'text-indigo-400' : 'text-slate-400'
+                  }`}
+                />
+                <span className="truncate">Paste Style</span>
+              </>
+            )}
+          </button>
+        </div>
+
+        {/* Copy JSON Button */}
+        <button
+          type="button"
+          id="flyout-copy-json-btn"
+          onClick={handleCopyJson}
+          className={`flex items-center justify-center gap-1.5 py-1.5 px-2.5 rounded-lg font-bold transition cursor-pointer border ${
+            copyJsonSuccess
+              ? 'bg-emerald-600 border-emerald-500 text-white shadow-xs'
+              : isDark
+              ? 'bg-slate-900 hover:bg-slate-800 border-slate-700 text-amber-300 hover:text-amber-200'
+              : 'bg-white hover:bg-amber-50 border-slate-200 text-amber-700 shadow-2xs'
+          }`}
+          title="Copy the entire block definition (including content, settings, and visualNode) as formatted JSON string to clipboard for developer use"
+        >
+          {copyJsonSuccess ? (
+            <>
+              <Check className="w-3.5 h-3.5 text-white" />
+              <span className="text-[10px]">Copied!</span>
+            </>
+          ) : (
+            <>
+              <FileJson className="w-3.5 h-3.5 text-amber-400" />
+              <span className="text-[10px]">Copy JSON</span>
+            </>
+          )}
+        </button>
+      </div>
+
 
       {/* 2. SCROLLABLE PARAMETERS LIST */}
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-5 select-none text-xs">
@@ -772,6 +1148,200 @@ export const BlockParametersFlyout: React.FC<BlockParametersFlyoutProps> = ({
             </div>
           </div>
         )}
+        {/* SECTION E: STYLE CLIPBOARD & DEVELOPER JSON EXPORT */}
+        <div
+          className={`p-3.5 rounded-2xl border shadow-xs space-y-3.5 ${
+            isDark ? 'bg-slate-950/60 border-slate-800/80' : 'bg-slate-50/80 border-slate-200/80'
+          }`}
+        >
+          <div className="flex items-center justify-between pb-1 border-b border-slate-200/60 dark:border-slate-800/60">
+            <div className="flex items-center gap-1.5">
+              <Paintbrush className="w-3.5 h-3.5 text-indigo-500" />
+              <span className="font-bold text-[11px] uppercase tracking-wider text-slate-700 dark:text-slate-200">
+                Style Clipboard & Dev Tools
+              </span>
+            </div>
+            <span className="text-[10px] text-slate-400 font-medium">Replicate & Export</span>
+          </div>
+
+          {/* Style Clipboard Status Card */}
+          <div
+            className={`p-3 rounded-xl border space-y-2.5 ${
+              styleClipboard
+                ? isDark
+                  ? 'bg-indigo-950/20 border-indigo-500/30'
+                  : 'bg-indigo-50/50 border-indigo-200/80'
+                : isDark
+                ? 'bg-slate-900/40 border-slate-800'
+                : 'bg-white border-slate-200'
+            }`}
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5">
+                <Palette className="w-3.5 h-3.5 text-indigo-400" />
+                <span className="font-bold text-xs text-slate-800 dark:text-slate-200">
+                  Specialized Style Clipboard
+                </span>
+              </div>
+              {styleClipboard && (
+                <button
+                  type="button"
+                  onClick={handleClearStyleClipboard}
+                  className="text-[10px] text-slate-400 hover:text-rose-500 transition cursor-pointer font-medium"
+                  title="Clear style clipboard"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+
+            {styleClipboard ? (
+              <div className="space-y-2 text-[11px]">
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-500 dark:text-slate-400">Stored from:</span>
+                  <span className="font-bold text-indigo-600 dark:text-indigo-400 truncate max-w-[170px]">
+                    {styleClipboard.sourceBlockName}
+                  </span>
+                </div>
+                {styleClipboard.summary && (
+                  <div className="grid grid-cols-2 gap-1 text-[10px] text-slate-600 dark:text-slate-300">
+                    <span className="truncate bg-slate-200/60 dark:bg-slate-800 px-1.5 py-0.5 rounded">
+                      {styleClipboard.summary.bgDesc}
+                    </span>
+                    <span className="truncate bg-slate-200/60 dark:bg-slate-800 px-1.5 py-0.5 rounded">
+                      {styleClipboard.summary.paddingDesc}
+                    </span>
+                    <span className="truncate bg-slate-200/60 dark:bg-slate-800 px-1.5 py-0.5 rounded">
+                      {styleClipboard.summary.textColor}
+                    </span>
+                    <span className="truncate bg-slate-200/60 dark:bg-slate-800 px-1.5 py-0.5 rounded">
+                      {styleClipboard.summary.textAlign}
+                    </span>
+                  </div>
+                )}
+                <div className="flex gap-1.5 pt-1">
+                  <button
+                    type="button"
+                    onClick={handlePasteStyle}
+                    className="flex-1 py-1.5 px-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer shadow-xs"
+                  >
+                    <ClipboardPaste className="w-3.5 h-3.5" />
+                    <span>{pasteStyleSuccess ? 'Pasted!' : 'Paste Style Here'}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleCopyStyle}
+                    className={`py-1.5 px-2.5 rounded-lg font-bold text-xs flex items-center justify-center gap-1 transition cursor-pointer border ${
+                      isDark
+                        ? 'bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700'
+                        : 'bg-white hover:bg-slate-50 text-slate-700 border-slate-200'
+                    }`}
+                    title="Copy current block's style into clipboard instead"
+                  >
+                    <Paintbrush className="w-3.5 h-3.5 text-indigo-400" />
+                    <span>{copyStyleSuccess ? 'Copied!' : 'Copy'}</span>
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
+                  Copy this section's style properties (background, padding, alignment, text color, shadows) to replicate on other blocks.
+                </p>
+                <button
+                  type="button"
+                  onClick={handleCopyStyle}
+                  className="w-full py-1.5 px-3 bg-indigo-600/10 hover:bg-indigo-600/20 text-indigo-600 dark:text-indigo-400 border border-indigo-500/30 rounded-lg font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer"
+                >
+                  <Paintbrush className="w-3.5 h-3.5" />
+                  <span>{copyStyleSuccess ? 'Style Copied!' : 'Copy Current Block Style'}</span>
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Developer JSON Export Card */}
+          <div
+            className={`p-3 rounded-xl border space-y-2.5 ${
+              isDark ? 'bg-slate-900/40 border-slate-800' : 'bg-white border-slate-200'
+            }`}
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5">
+                <FileJson className="w-3.5 h-3.5 text-amber-500" />
+                <span className="font-bold text-xs text-slate-800 dark:text-slate-200">
+                  Developer JSON Definition
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsJsonPreviewOpen((prev) => !prev)}
+                className="text-[10px] text-blue-500 hover:underline flex items-center gap-0.5 cursor-pointer font-medium"
+              >
+                <span>{isJsonPreviewOpen ? 'Hide' : 'Preview'}</span>
+                {isJsonPreviewOpen ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+              </button>
+            </div>
+
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
+              Export complete formatted JSON definition including <code className="text-amber-500 font-mono">content</code>, <code className="text-amber-500 font-mono">settings</code>, and <code className="text-amber-500 font-mono">visualNode</code> for external developer use.
+            </p>
+
+            <button
+              type="button"
+              id="flyout-copy-json-full-btn"
+              onClick={handleCopyJson}
+              className="w-full py-2 px-3 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 transition cursor-pointer shadow-xs"
+            >
+              {copyJsonSuccess ? (
+                <>
+                  <Check className="w-4 h-4 text-slate-950" />
+                  <span>JSON Copied to Clipboard!</span>
+                </>
+              ) : (
+                <>
+                  <FileJson className="w-4 h-4 text-slate-950" />
+                  <span>Copy Complete Block JSON</span>
+                </>
+              )}
+            </button>
+
+            {isJsonPreviewOpen && (
+              <div className="space-y-1.5 pt-1">
+                <div className="flex items-center justify-between text-[10px] text-slate-400">
+                  <span>Formatted JSON Preview</span>
+                  <span className="font-mono">
+                    {(JSON.stringify(block, null, 2).length / 1024).toFixed(1)} KB
+                  </span>
+                </div>
+                <pre
+                  className={`p-2.5 rounded-xl font-mono text-[10px] max-h-48 overflow-auto border select-all whitespace-pre-wrap ${
+                    isDark
+                      ? 'bg-slate-950 text-amber-300 border-slate-800'
+                      : 'bg-slate-950 text-amber-300 border-slate-800'
+                  }`}
+                >
+                  {JSON.stringify(
+                    {
+                      id: block.id,
+                      type: block.type,
+                      category: block.category,
+                      name: block.name,
+                      settings: block.settings,
+                      content: block.content,
+                      visualNode: block.visualNode,
+                      customHtml: block.customHtml,
+                      customCss: block.customCss,
+                      comments: block.comments,
+                    },
+                    null,
+                    2
+                  )}
+                </pre>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* 3. FLYOUT FOOTER: Direct Action Buttons (Code Editor, Full Inspector, Delete) */}
@@ -782,6 +1352,63 @@ export const BlockParametersFlyout: React.FC<BlockParametersFlyoutProps> = ({
             : 'bg-slate-50 border-slate-200 text-slate-700'
         }`}
       >
+        {/* Style & JSON Quick Actions in Footer */}
+        <div className="flex items-center gap-1.5">
+          <button
+            type="button"
+            id="flyout-footer-copy-style-btn"
+            onClick={handleCopyStyle}
+            className={`flex-1 flex items-center justify-center gap-1 py-1.5 px-2 rounded-lg text-xs font-semibold transition cursor-pointer border ${
+              copyStyleSuccess
+                ? 'bg-emerald-600 text-white border-emerald-500'
+                : isDark
+                ? 'bg-slate-900 border-slate-800 hover:bg-slate-800 text-slate-300'
+                : 'bg-white border-slate-200 hover:bg-slate-100 text-slate-700'
+            }`}
+            title="Copy style properties"
+          >
+            {copyStyleSuccess ? <Check className="w-3 h-3" /> : <Paintbrush className="w-3 h-3 text-indigo-400" />}
+            <span className="text-[11px]">{copyStyleSuccess ? 'Copied' : 'Copy Style'}</span>
+          </button>
+
+          <button
+            type="button"
+            id="flyout-footer-paste-style-btn"
+            onClick={handlePasteStyle}
+            disabled={!styleClipboard}
+            className={`flex-1 flex items-center justify-center gap-1 py-1.5 px-2 rounded-lg text-xs font-semibold transition border ${
+              pasteStyleSuccess
+                ? 'bg-emerald-600 text-white border-emerald-500'
+                : styleClipboard
+                ? isDark
+                  ? 'bg-indigo-950/50 hover:bg-indigo-900/70 border-indigo-500/40 text-indigo-300 cursor-pointer'
+                  : 'bg-indigo-50 hover:bg-indigo-100 border-indigo-200 text-indigo-700 cursor-pointer'
+                : 'opacity-40 cursor-not-allowed border-transparent bg-slate-500/10 text-slate-400'
+            }`}
+            title={styleClipboard ? `Paste style from "${styleClipboard.sourceBlockName}"` : 'No style copied'}
+          >
+            {pasteStyleSuccess ? <Check className="w-3 h-3" /> : <ClipboardPaste className="w-3 h-3 text-indigo-400" />}
+            <span className="text-[11px]">{pasteStyleSuccess ? 'Pasted' : 'Paste Style'}</span>
+          </button>
+
+          <button
+            type="button"
+            id="flyout-footer-copy-json-btn"
+            onClick={handleCopyJson}
+            className={`flex items-center justify-center gap-1 py-1.5 px-2.5 rounded-lg text-xs font-semibold transition cursor-pointer border ${
+              copyJsonSuccess
+                ? 'bg-emerald-600 text-white border-emerald-500'
+                : isDark
+                ? 'bg-slate-900 border-slate-800 hover:bg-slate-800 text-amber-300'
+                : 'bg-white border-slate-200 hover:bg-amber-50 text-amber-700'
+            }`}
+            title="Copy entire block JSON definition"
+          >
+            {copyJsonSuccess ? <Check className="w-3 h-3" /> : <FileJson className="w-3 h-3 text-amber-400" />}
+            <span className="text-[11px]">JSON</span>
+          </button>
+        </div>
+
         <div className="flex items-center gap-2">
           {/* Split-Pane Code Editor */}
           {onOpenCodeEditor && (
@@ -811,6 +1438,7 @@ export const BlockParametersFlyout: React.FC<BlockParametersFlyoutProps> = ({
             </button>
           )}
         </div>
+
 
         {/* Delete button with safety toggle */}
         {confirmDelete ? (

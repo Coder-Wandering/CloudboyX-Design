@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useMemo } from 'react';
 import {
   Sliders,
   Settings,
@@ -13,6 +13,7 @@ import {
   Laptop,
   Monitor,
   Maximize2,
+  Minimize2,
   SlidersHorizontal,
   ChevronRight,
   Info,
@@ -87,6 +88,10 @@ interface CanvasFrameProps {
   autoVerticalRhythm?: boolean;
   onToggleAutoVerticalRhythm?: () => void;
   onApplyVerticalRhythm?: () => void;
+  onOpenCommandPalette?: () => void;
+  isFitToScreen?: boolean;
+  onToggleFitToScreen?: () => void;
+  onZoomScaleChange?: (scale: number) => void;
 }
 
 const BREAKPOINT_DEVICE_ICONS: Record<Breakpoint, React.ElementType> = {
@@ -103,6 +108,7 @@ const BREAKPOINT_FRAME_CONFIG: Record<
   {
     widthLabel: string;
     targetWidth: number;
+    targetHeight: number;
     containerClass: string;
     deviceType: string;
     hasBezel: boolean;
@@ -111,6 +117,7 @@ const BREAKPOINT_FRAME_CONFIG: Record<
   xs: {
     widthLabel: '390px',
     targetWidth: 390,
+    targetHeight: 844,
     containerClass:
       'w-[390px] h-[844px] my-5 rounded-[36px] shadow-2xl border-[8px] border-slate-800 bg-white ring-1 ring-slate-900/10 overflow-hidden',
     deviceType: 'Mobile Phone (Portrait)',
@@ -119,6 +126,7 @@ const BREAKPOINT_FRAME_CONFIG: Record<
   sm: {
     widthLabel: '576px',
     targetWidth: 576,
+    targetHeight: 840,
     containerClass:
       'w-[576px] h-[840px] my-5 rounded-[24px] shadow-2xl border-[6px] border-slate-800 bg-white ring-1 ring-slate-900/10 overflow-hidden',
     deviceType: 'Large Mobile / Landscape',
@@ -127,6 +135,7 @@ const BREAKPOINT_FRAME_CONFIG: Record<
   md: {
     widthLabel: '768px',
     targetWidth: 768,
+    targetHeight: 1024,
     containerClass:
       'w-[768px] h-[1024px] my-5 rounded-[20px] shadow-2xl border-[6px] border-slate-800 bg-white ring-1 ring-slate-900/10 overflow-hidden',
     deviceType: 'Tablet / iPad',
@@ -134,7 +143,8 @@ const BREAKPOINT_FRAME_CONFIG: Record<
   },
   lg: {
     widthLabel: '992px',
-    targetWidth: 992,
+    targetWidth: 1040,
+    targetHeight: 750,
     containerClass:
       'w-full max-w-[1040px] min-h-[750px] my-3 rounded-[12px] shadow-2xl border-[3px] border-slate-700 bg-white ring-1 ring-slate-900/10 overflow-hidden',
     deviceType: 'Laptop / Netbook',
@@ -142,7 +152,8 @@ const BREAKPOINT_FRAME_CONFIG: Record<
   },
   xl: {
     widthLabel: '1200px',
-    targetWidth: 1200,
+    targetWidth: 1380,
+    targetHeight: 820,
     containerClass:
       'w-full max-w-[1380px] min-h-[820px] my-3 rounded-[8px] shadow-xl border-[2px] border-slate-600 bg-white ring-1 ring-slate-900/10 overflow-hidden',
     deviceType: 'Standard Desktop',
@@ -151,6 +162,7 @@ const BREAKPOINT_FRAME_CONFIG: Record<
   xxl: {
     widthLabel: '100% Fluid',
     targetWidth: 1440,
+    targetHeight: 900,
     containerClass: 'w-full flex-1 min-h-0 bg-white shadow-xs',
     deviceType: 'Ultra-wide / Full Canvas',
     hasBezel: false,
@@ -664,11 +676,20 @@ export const CanvasFrame: React.FC<CanvasFrameProps> = ({
   autoVerticalRhythm = true,
   onToggleAutoVerticalRhythm,
   onApplyVerticalRhythm,
+  onOpenCommandPalette,
+  isFitToScreen = false,
+  onToggleFitToScreen,
+  onZoomScaleChange,
 }) => {
+  const outerContainerRef = useRef<HTMLDivElement>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [isDragOver, setIsDragOver] = useState(false);
   const [showCascadeInfo, setShowCascadeInfo] = useState(false);
   const [isSectionRailOpen, setIsSectionRailOpen] = useState(false);
+  const [containerDimensions, setContainerDimensions] = useState<{ width: number; height: number }>({
+    width: 1200,
+    height: 800,
+  });
 
   // Quick Add Block Popover state
   const [quickAddPopoverState, setQuickAddPopoverState] = useState<{
@@ -895,17 +916,86 @@ export const CanvasFrame: React.FC<CanvasFrameProps> = ({
   const currentFrameConfig = BREAKPOINT_FRAME_CONFIG[currentBp];
   const CurrentDeviceIcon = BREAKPOINT_DEVICE_ICONS[currentBp];
 
-  // Generate full HTML with active animationMeta and multi-select support
-  const htmlContent = generateCompleteHtml(
-    blocks,
-    theme,
-    projectTitle,
-    !isPreviewMode,
-    selectedBlockId,
-    seoSettings,
-    animationMeta,
-    selectedBlockIds,
-    isMultiSelectMode
+  // Measure container dimensions for Fit-to-Screen dynamic zoom scaling
+  useEffect(() => {
+    const el = outerContainerRef.current;
+    if (!el) return;
+
+    const measure = () => {
+      const rect = el.getBoundingClientRect();
+      setContainerDimensions({
+        // Account for comfortable margins on left/right and top ruler / bottom HUD
+        width: Math.max(300, rect.width - 48),
+        height: Math.max(300, rect.height - 110),
+      });
+    };
+
+    measure();
+
+    let resizeObserver: ResizeObserver | null = null;
+    if (typeof ResizeObserver !== 'undefined') {
+      resizeObserver = new ResizeObserver(() => {
+        measure();
+      });
+      resizeObserver.observe(el);
+    }
+
+    window.addEventListener('resize', measure);
+    return () => {
+      if (resizeObserver) resizeObserver.disconnect();
+      window.removeEventListener('resize', measure);
+    };
+  }, []);
+
+  // Compute scale factor for Fit to Screen
+  const computedScale = useMemo(() => {
+    if (!isFitToScreen) return 1;
+    // For fluid xxl, no horizontal downscaling is needed
+    if (currentBp === 'xxl') return 1;
+
+    const targetW = currentFrameConfig.targetWidth || 1040;
+    const targetH = currentFrameConfig.targetHeight || 750;
+
+    const scaleW = containerDimensions.width / targetW;
+    const scaleH = containerDimensions.height / targetH;
+    // Uniformly scale down to fit within viewport
+    const rawScale = Math.min(scaleW, scaleH);
+    // Clamp scale: between 0.25 (readable minimum) and 1.0 (do not upscale beyond 100%)
+    return Math.min(1, Math.max(0.25, Math.round(rawScale * 100) / 100));
+  }, [isFitToScreen, currentBp, currentFrameConfig, containerDimensions]);
+
+  // Synchronize computed zoom scale to parent
+  useEffect(() => {
+    if (onZoomScaleChange) {
+      onZoomScaleChange(computedScale);
+    }
+  }, [computedScale, onZoomScaleChange]);
+
+  // Generate full HTML with active animationMeta and multi-select support (memoized to avoid iframe resets)
+  const htmlContent = useMemo(
+    () =>
+      generateCompleteHtml(
+        blocks,
+        theme,
+        projectTitle,
+        !isPreviewMode,
+        selectedBlockId,
+        seoSettings,
+        animationMeta,
+        selectedBlockIds,
+        isMultiSelectMode
+      ),
+    [
+      blocks,
+      theme,
+      projectTitle,
+      isPreviewMode,
+      selectedBlockId,
+      seoSettings,
+      animationMeta,
+      selectedBlockIds,
+      isMultiSelectMode,
+    ]
   );
 
   // Sync selected block IDs and multi-select mode to iframe
@@ -1068,6 +1158,8 @@ export const CanvasFrame: React.FC<CanvasFrameProps> = ({
           } else if (onPasteLatest) {
             onPasteLatest('below');
           }
+        } else if (k === 'k' && onOpenCommandPalette) {
+          onOpenCommandPalette();
         }
       }
 
@@ -1104,6 +1196,7 @@ export const CanvasFrame: React.FC<CanvasFrameProps> = ({
     onReorderBlocks,
     onMoveUp,
     onMoveDown,
+    onOpenCommandPalette,
   ]);
 
   // Scroll iframe to selected block on external selection (breadcrumbs, sidebar)
@@ -1207,6 +1300,7 @@ export const CanvasFrame: React.FC<CanvasFrameProps> = ({
 
   return (
     <div
+      ref={outerContainerRef}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
@@ -1325,6 +1419,48 @@ export const CanvasFrame: React.FC<CanvasFrameProps> = ({
 
           {/* Right: Multi-Select Toggle, Grid Overlay Toggle, Breakpoint Switcher & Quick Code Button */}
           <div className="flex items-center gap-1.5 shrink-0">
+            {/* Fit to Screen Zoom Toggle */}
+            {onToggleFitToScreen && (
+              <button
+                type="button"
+                id="canvas-ruler-fit-toggle-btn"
+                onClick={onToggleFitToScreen}
+                className={`flex items-center gap-1.5 px-2 py-0.5 rounded-lg text-[11px] font-semibold transition cursor-pointer border ${
+                  isFitToScreen
+                    ? isDark
+                      ? 'bg-blue-600 text-white border-blue-500 shadow-xs'
+                      : 'bg-blue-600 text-white border-blue-600 shadow-xs'
+                    : isDark
+                    ? 'text-slate-300 hover:text-white hover:bg-slate-800 border-slate-700/80 bg-slate-900/60'
+                    : 'text-slate-700 hover:text-slate-900 hover:bg-slate-100 border-slate-200 bg-white'
+                }`}
+                title={
+                  isFitToScreen
+                    ? `Fit to Screen: Canvas scaled to ${Math.round(computedScale * 100)}% to fit browser viewport (Click to reset to 100% zoom)`
+                    : 'Fit to Screen: Scale canvas to fit browser viewport without horizontal or vertical clipping (Click to activate)'
+                }
+                aria-label="Toggle Fit to Screen canvas zoom mode"
+              >
+                {isFitToScreen ? (
+                  <Minimize2 className="w-3.5 h-3.5" />
+                ) : (
+                  <Maximize2 className="w-3.5 h-3.5" />
+                )}
+                <span className="hidden lg:inline">Fit</span>
+                <span
+                  className={`text-[9.5px] font-mono font-bold px-1.5 py-0.2 rounded-full ${
+                    isFitToScreen
+                      ? 'bg-blue-800 text-blue-100'
+                      : isDark
+                      ? 'bg-slate-800 text-slate-400'
+                      : 'bg-slate-200 text-slate-600'
+                  }`}
+                >
+                  {isFitToScreen ? `${Math.round(computedScale * 100)}%` : '100%'}
+                </span>
+              </button>
+            )}
+
             {/* Multi-Select Mode Toggle Button */}
             {onToggleMultiSelectMode && (
               <button
@@ -1588,13 +1724,39 @@ export const CanvasFrame: React.FC<CanvasFrameProps> = ({
         </div>
       )}
 
-      {/* 2. SIMULATED VIEWPORT FRAME */}
+      {/* 2. SIMULATED VIEWPORT FRAME WITH FIT-TO-SCREEN ZOOM SCALING */}
       <div
-        id="canvas-viewport-frame-container"
-        onMouseEnter={() => setIsHoveringCanvas(true)}
-        onMouseLeave={() => setIsHoveringCanvas(false)}
-        className={`transition-all duration-300 relative flex flex-col ${currentFrameConfig.containerClass}`}
+        id="canvas-fit-scaling-wrapper"
+        className="flex items-center justify-center transition-all duration-300"
+        style={
+          isFitToScreen && computedScale < 1
+            ? {
+                width: `${Math.round((currentFrameConfig.targetWidth || 1040) * computedScale)}px`,
+                height: `${Math.round((currentFrameConfig.targetHeight || 750) * computedScale)}px`,
+                margin: '16px auto',
+                flexShrink: 0,
+              }
+            : undefined
+        }
       >
+        <div
+          id="canvas-viewport-frame-container"
+          onMouseEnter={() => setIsHoveringCanvas(true)}
+          onMouseLeave={() => setIsHoveringCanvas(false)}
+          style={
+            isFitToScreen && computedScale < 1
+              ? {
+                  width: `${currentFrameConfig.targetWidth || 1040}px`,
+                  height: `${currentFrameConfig.targetHeight || 750}px`,
+                  transform: `scale(${computedScale})`,
+                  transformOrigin: 'top center',
+                  transition: 'transform 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
+                  margin: 0,
+                }
+              : undefined
+          }
+          className={`transition-all duration-300 relative flex flex-col ${currentFrameConfig.containerClass}`}
+        >
         {/* Mobile / Tablet camera pill simulation */}
         {currentFrameConfig.hasBezel && (
           <div className="w-full bg-slate-800 py-1 flex justify-center items-center shrink-0 z-20">
@@ -1775,6 +1937,7 @@ export const CanvasFrame: React.FC<CanvasFrameProps> = ({
           sandbox="allow-scripts allow-same-origin allow-forms allow-modals"
         />
       </div>
+    </div>
 
       {/* 3. COMPACT BOTTOM RESPONSIVE CAPSULE */}
       <div
@@ -1961,6 +2124,35 @@ export const CanvasFrame: React.FC<CanvasFrameProps> = ({
           <span className="hidden md:inline text-[10px] font-mono text-slate-400 pl-1 border-l border-slate-800">
             {currentFrameConfig.widthLabel}
           </span>
+
+          {/* Bottom HUD Fit to Screen Toggle */}
+          {onToggleFitToScreen && (
+            <button
+              type="button"
+              id="canvas-bottom-fit-screen-btn"
+              onClick={onToggleFitToScreen}
+              className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[10.5px] font-semibold transition cursor-pointer border ${
+                isFitToScreen
+                  ? 'bg-blue-600 text-white border-blue-400 shadow-xs'
+                  : 'text-slate-400 hover:text-white hover:bg-slate-800 border-slate-800'
+              }`}
+              title={
+                isFitToScreen
+                  ? `Fit to Screen: Scaled to ${Math.round(computedScale * 100)}% (Click to reset to 100% zoom)`
+                  : 'Fit Canvas to Screen (Click to activate)'
+              }
+              aria-label="Toggle Fit to Screen in bottom HUD"
+            >
+              {isFitToScreen ? (
+                <Minimize2 className="w-2.5 h-2.5" />
+              ) : (
+                <Maximize2 className="w-2.5 h-2.5" />
+              )}
+              <span className="font-mono text-[9.5px]">
+                {isFitToScreen ? `${Math.round(computedScale * 100)}% Fit` : '100%'}
+              </span>
+            </button>
+          )}
 
           <button
             type="button"

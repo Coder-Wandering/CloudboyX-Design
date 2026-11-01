@@ -476,4 +476,22 @@ export interface ProjectRevision {
 
 export const REVISIONS_STORAGE_KEY = 'bootstrap5_visual_editor_revisions';
 
+export interface BlockStyleClipboardItem {
+  sourceBlockId: string;
+  sourceBlockName: string;
+  sourceBlockType: string;
+  copiedAt: number;
+  settings: Partial<BlockSettings>;
+  customCss?: string;
+  summary?: {
+    bgDesc: string;
+    paddingDesc: string;
+    textColor: string;
+    textAlign: string;
+  };
+}
+
+export const STYLE_CLIPBOARD_STORAGE_KEY = 'cloudboyx_block_style_clipboard';
+
+
 

@@ -29,6 +29,9 @@ import {
   Share2,
   Trash2,
   X,
+  Command,
+  Maximize2,
+  Minimize2,
 } from 'lucide-react';
 import { ViewportMode, BlockInstance } from '../types';
 import { Breakpoint, BREAKPOINT_LABELS, BREAKPOINT_ORDER } from '../engine/bootstrapCascade';
@@ -72,6 +75,10 @@ interface EditorHeaderProps {
   blocks?: BlockInstance[];
   selectedBlockId?: string | null;
   onSelectBlock?: (blockId: string) => void;
+  onOpenCommandPalette?: () => void;
+  isFitToScreen?: boolean;
+  onToggleFitToScreen?: () => void;
+  zoomScale?: number;
 }
 
 function formatHeaderSaveTime(timestamp: number, currentNow: number): string {
@@ -139,6 +146,10 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
   blocks = [],
   selectedBlockId,
   onSelectBlock,
+  onOpenCommandPalette,
+  isFitToScreen = false,
+  onToggleFitToScreen,
+  zoomScale = 1,
 }) => {
   const { user, isDemoUnlocked, activeRole, permissions, agencyBranding, logOut } = useAuth();
   const [isEditingTitle, setIsEditingTitle] = useState(false);
@@ -512,6 +523,34 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
             </button>
           )}
 
+          {/* Global Command Palette Trigger Button (Ctrl+K / ⌘K) */}
+          {onOpenCommandPalette && (
+            <button
+              type="button"
+              id="btn-header-command-palette"
+              onClick={onOpenCommandPalette}
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-semibold border transition cursor-pointer shadow-2xs group ${
+                isDark
+                  ? 'bg-slate-900/90 hover:bg-slate-800 text-slate-300 hover:text-white border-slate-700/80 hover:border-slate-600'
+                  : 'bg-white hover:bg-slate-50 text-slate-700 hover:text-slate-900 border-slate-200/90 shadow-2xs hover:border-slate-300'
+              }`}
+              title="Command Palette: Search & insert blocks, jump to settings, trigger actions (Ctrl+K or ⌘K)"
+              aria-label="Open Command Palette (Ctrl+K)"
+            >
+              <Command className="w-3.5 h-3.5 text-blue-500 group-hover:scale-110 transition-transform" />
+              <span className="hidden xl:inline">Commands</span>
+              <kbd
+                className={`hidden sm:inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-mono font-bold tracking-tight border ${
+                  isDark
+                    ? 'bg-slate-800 text-slate-400 border-slate-700'
+                    : 'bg-slate-100 text-slate-500 border-slate-200'
+                }`}
+              >
+                ⌘K
+              </kbd>
+            </button>
+          )}
+
           {/* Global Block Search (Find and jump to specific blocks by name or keyword) */}
           {onSelectBlock && (
             <div className="flex items-center">
@@ -610,6 +649,61 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
             </div>
           )}
         </div>
+
+        {/* Fit to Screen / 100% Zoom Toggle */}
+        {onToggleFitToScreen && (
+          <div
+            className={`flex items-center p-0.5 rounded-xl border transition-colors ${
+              isDark ? 'bg-slate-900 border-slate-800' : 'bg-slate-100 border-slate-200/80'
+            }`}
+          >
+            <button
+              type="button"
+              id="btn-header-fit-to-screen"
+              data-testid="btn-header-fit-to-screen"
+              onClick={onToggleFitToScreen}
+              className={`px-2.5 py-1 rounded-lg text-xs font-medium flex items-center gap-1.5 transition cursor-pointer ${
+                isFitToScreen
+                  ? isDark
+                    ? 'bg-blue-600 text-white shadow-2xs'
+                    : 'bg-white text-blue-700 shadow-2xs font-semibold'
+                  : isDark
+                  ? 'text-slate-400 hover:text-white'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+              title={
+                isFitToScreen
+                  ? `Fit to Screen is Active: Canvas scaled to fit browser viewport (${zoomScale && zoomScale < 0.99 ? Math.round(zoomScale * 100) : 100}%). Click to switch to 100% zoom.`
+                  : 'Fit to Screen: Scale canvas to fit browser viewport without horizontal or vertical scrolling (Click to activate)'
+              }
+              aria-label="Toggle Fit to Screen canvas zoom mode"
+            >
+              {isFitToScreen ? (
+                <Minimize2 className="w-3.5 h-3.5 text-blue-200" />
+              ) : (
+                <Maximize2 className="w-3.5 h-3.5" />
+              )}
+              <span className="hidden sm:inline">Fit to Screen</span>
+              <span
+                className={`text-[9.5px] font-mono font-bold px-1.5 py-0.2 rounded-full ${
+                  isFitToScreen
+                    ? isDark
+                      ? 'bg-blue-800/90 text-blue-100'
+                      : 'bg-blue-100 text-blue-800'
+                    : isDark
+                    ? 'bg-slate-800 text-slate-400'
+                    : 'bg-slate-200 text-slate-600'
+                }`}
+              >
+                {isFitToScreen
+                  ? zoomScale && zoomScale < 0.99
+                    ? `${Math.round(zoomScale * 100)}%`
+                    : 'FIT'
+                  : '100%'}
+              </span>
+            </button>
+          </div>
+        )}
 
         {/* Undo / Redo / Clean All */}
         <div

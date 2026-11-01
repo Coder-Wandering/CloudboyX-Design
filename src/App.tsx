@@ -38,6 +38,7 @@ import { BlockCodeEditorModal } from './components/BlockCodeEditorModal';
 import { PdfExportModal } from './components/PdfExportModal';
 import { RevisionHistoryModal } from './components/RevisionHistoryModal';
 import { ShareProjectModal } from './components/ShareProjectModal';
+import { CommandPalette } from './components/CommandPalette';
 import {
   applyLogicalVerticalRhythm,
   isAutoVerticalRhythmEnabled,
@@ -251,6 +252,16 @@ export default function App() {
     }
   }, []);
 
+  // Canvas Zoom / Fit to Screen State
+  const [isFitToScreen, setIsFitToScreen] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('builder_fit_to_screen') === 'true';
+    } catch {
+      return false;
+    }
+  });
+  const [zoomScale, setZoomScale] = useState<number>(1);
+
   // Undo / Redo history
   const [history, setHistory] = useState<BlockInstance[][]>([]);
   const [redoStack, setRedoStack] = useState<BlockInstance[][]>([]);
@@ -318,6 +329,7 @@ export default function App() {
   const [isStudioViewerOpen, setIsStudioViewerOpen] = useState(false);
   const [codeEditorBlockId, setCodeEditorBlockId] = useState<string | null>(null);
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+  const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   const [isTemplateGalleryOpen, setIsTemplateGalleryOpen] = useState<boolean>(() => {
     try {
       const params = new URLSearchParams(window.location.search);
@@ -495,6 +507,25 @@ export default function App() {
     []
   );
 
+  // Toggle Fit to Screen canvas zoom mode
+  const handleToggleFitToScreen = useCallback((forceVal?: boolean) => {
+    setIsFitToScreen((prev) => {
+      const next = typeof forceVal === 'boolean' ? forceVal : !prev;
+      try {
+        localStorage.setItem('builder_fit_to_screen', String(next));
+      } catch {
+        // ignore
+      }
+      showToast({
+        title: next ? 'Fit to Screen Active' : 'Zoom: 100% Scale',
+        description: next
+          ? 'Canvas automatically scaled to fit your browser viewport without scroll clipping.'
+          : 'Canvas reset to 100% 1:1 original pixel scale.',
+      });
+      return next;
+    });
+  }, [showToast]);
+
   const handleAddSectionAtIndex = useCallback((index: number) => {
     setTargetInsertIndex(index);
     setDesignActiveTab('blocks');
@@ -615,6 +646,112 @@ export default function App() {
     },
     [blocks, clipboardHistory, updateClipboard, showToast]
   );
+
+  // Copy Block Style to specialized style clipboard
+  const handleCopyBlockStyle = useCallback(
+    (targetBlock: BlockInstance) => {
+      try {
+        const STYLE_KEYS = [
+          'bgType', 'bgColor', 'backgroundColor', 'backgroundGradient', 'bgImage', 'backgroundImage',
+          'bgOverlay', 'bgOverlayOpacity', 'bgOverlayColor', 'bgSize', 'bgPosition', 'bgRepeat',
+          'paddingTop', 'paddingBottom', 'paddingLeft', 'paddingRight', 'marginTop', 'marginBottom',
+          'marginLeft', 'marginRight', 'containerWidth', 'textColor', 'textAlign', 'darkSection',
+          'fullHeight', 'cardShadow', 'shadow', 'gutterSize', 'justifyContent', 'alignItems', 'cardHeight',
+          'buttonVariant', 'buttonPill'
+        ];
+        const extracted: Record<string, any> = {};
+        STYLE_KEYS.forEach((k) => {
+          if (targetBlock.settings && (targetBlock.settings as any)[k] !== undefined) {
+            extracted[k] = (targetBlock.settings as any)[k];
+          }
+        });
+        const payload = {
+          id: `style-${Date.now()}`,
+          sourceBlockId: targetBlock.id,
+          sourceBlockName: targetBlock.name,
+          sourceBlockType: targetBlock.type,
+          timestamp: Date.now(),
+          settings: extracted,
+          summary: {
+            bgDesc: targetBlock.settings?.bgColor || 'Default Color',
+            paddingDesc: `Pad: ${targetBlock.settings?.paddingTop ?? 4}/${targetBlock.settings?.paddingBottom ?? 4}`,
+            textColor: targetBlock.settings?.textColor === 'light' ? 'Light Text' : 'Dark Text',
+            textAlign: targetBlock.settings?.textAlign ? `Align: ${targetBlock.settings.textAlign}` : 'Align: Default',
+          },
+        };
+        localStorage.setItem('bootstrap5_style_clipboard', JSON.stringify(payload));
+        showToast({
+          title: `Copied Style from "${targetBlock.name}"`,
+          description: 'Style properties saved to clipboard. Ready to paste onto other blocks.',
+        });
+      } catch (e) {
+        console.warn('Failed to copy style', e);
+      }
+    },
+    [showToast]
+  );
+
+  // Paste Block Style onto target block
+  const handlePasteBlockStyle = useCallback(
+    (targetBlock: BlockInstance) => {
+      try {
+        const raw = localStorage.getItem('bootstrap5_style_clipboard');
+        if (!raw) {
+          showToast({
+            title: 'Style Clipboard is Empty',
+            description: 'Copy styles from a block first before pasting.',
+          });
+          return;
+        }
+        const parsed = JSON.parse(raw);
+        if (!parsed || !parsed.settings) return;
+        pushHistory(blocks);
+        setBlocks((prev) =>
+          prev.map((b) => (b.id === targetBlock.id ? { ...b, settings: { ...b.settings, ...parsed.settings } } : b))
+        );
+        showToast({
+          title: `Pasted Style onto "${targetBlock.name}"`,
+          description: `Applied styling preset from "${parsed.sourceBlockName || 'Copied Block'}".`,
+          actionLabel: 'Undo',
+          onAction: handleUndo,
+        });
+      } catch (e) {
+        console.warn('Failed to paste style', e);
+      }
+    },
+    [blocks, pushHistory, handleUndo, showToast]
+  );
+
+  // Copy full Block definition as formatted JSON to system clipboard
+  const handleCopyBlockJson = useCallback(
+    (targetBlock: BlockInstance) => {
+      try {
+        const jsonStr = JSON.stringify(targetBlock, null, 2);
+        if (navigator.clipboard?.writeText) {
+          navigator.clipboard.writeText(jsonStr);
+        }
+        showToast({
+          title: `Copied JSON for "${targetBlock.name}"`,
+          description: 'Full block schema definition copied to system clipboard.',
+        });
+      } catch (e) {
+        console.warn('Failed to copy JSON', e);
+      }
+    },
+    [showToast]
+  );
+
+  // Copy Complete HTML to system clipboard
+  const handleCopyCompiledHtml = useCallback(() => {
+    const html = generateCompleteHtml(blocks, theme, projectTitle, seoSettings);
+    if (navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(html);
+    }
+    showToast({
+      title: 'HTML Copied to Clipboard',
+      description: 'Complete production Bootstrap 5 HTML document ready to paste.',
+    });
+  }, [blocks, theme, projectTitle, seoSettings, showToast]);
 
   // Paste specific block at an exact target index in the block stack
   const handlePasteBlock = useCallback(
@@ -1104,9 +1241,11 @@ export default function App() {
           handleMoveDown(selectedBlockId);
         }
       }
-      // Escape: Close multi-select, sidebars and deselect block
+      // Escape: Close command palette, multi-select, sidebars and deselect block
       else if (e.key === 'Escape') {
-        if (isMultiSelectMode || selectedBlockIds.length > 1) {
+        if (isCommandPaletteOpen) {
+          setIsCommandPaletteOpen(false);
+        } else if (isMultiSelectMode || selectedBlockIds.length > 1) {
           setIsMultiSelectMode(false);
           setSelectedBlockIds(selectedBlockId ? [selectedBlockId] : []);
         } else if (isRevisionHistoryOpen) {
@@ -1127,15 +1266,15 @@ export default function App() {
         e.preventDefault();
         setIsDesignModeOpen((prev) => !prev);
       }
-      // Quick Search / Filter Blocks: Ctrl+K / ⌘K
+      // Global Command Palette: Ctrl+K / ⌘K
       else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault();
-        setIsDesignModeOpen(true);
-        setDesignActiveTab('blocks');
-        setTimeout(() => {
-          const input = document.getElementById('blocks-filter-input') as HTMLInputElement;
-          input?.focus();
-        }, 50);
+        setIsCommandPaletteOpen((prev) => !prev);
+      }
+      // Toggle Fit to Screen zoom: Alt+F (when not in input)
+      else if (e.altKey && e.key.toLowerCase() === 'f' && !isInput) {
+        e.preventDefault();
+        handleToggleFitToScreen();
       }
       // Toggle In-Canvas Preview: 'p' or 'P' (when not in input)
       // Shift+P: Open Full-Screen Live Preview Modal
@@ -1170,6 +1309,7 @@ export default function App() {
     handleDuplicateSelectedBlocks,
     handleDeleteSelectedBlocks,
     handleMoveSelectedBlocks,
+    handleToggleFitToScreen,
   ]);
 
   // Block management
@@ -1567,6 +1707,10 @@ export default function App() {
         }}
         onOpenModules={() => setIsModulesModalOpen(true)}
         onCleanAll={handleCleanAll}
+        onOpenCommandPalette={() => setIsCommandPaletteOpen(true)}
+        isFitToScreen={isFitToScreen}
+        onToggleFitToScreen={handleToggleFitToScreen}
+        zoomScale={zoomScale}
         lastModified={lastModified}
         isSaving={isSaving}
       />
@@ -1665,6 +1809,10 @@ export default function App() {
           autoVerticalRhythm={autoVerticalRhythm}
           onToggleAutoVerticalRhythm={handleToggleAutoVerticalRhythm}
           onApplyVerticalRhythm={handleApplyVerticalRhythm}
+          onOpenCommandPalette={() => setIsCommandPaletteOpen(true)}
+          isFitToScreen={isFitToScreen}
+          onToggleFitToScreen={handleToggleFitToScreen}
+          onZoomScaleChange={setZoomScale}
         />
 
         {/* Embedded Design Mode Dock / Sidebar (Right side by default, toggleable to Left) */}
@@ -1740,6 +1888,8 @@ export default function App() {
         }}
         themeMode={themeMode}
         theme={theme}
+        showToast={showToast}
+        onSaveCustomCode={handleSaveBlockCustomCode}
       />
 
       {/* CloudboyX Connected Custom Modules Modal */}
@@ -1873,6 +2023,69 @@ export default function App() {
         themeMode={themeMode}
         showToast={showToast}
         onImportState={handleImportSharedState}
+      />
+
+      {/* Global Command Palette Modal (Ctrl+K / ⌘K) */}
+      <CommandPalette
+        isOpen={isCommandPaletteOpen}
+        onClose={() => setIsCommandPaletteOpen(false)}
+        blocks={blocks}
+        selectedBlock={selectedBlock}
+        selectedBlockIds={selectedBlockIds}
+        theme={theme}
+        themeMode={themeMode}
+        projectTitle={projectTitle}
+        viewport={viewport}
+        autoVerticalRhythm={autoVerticalRhythm}
+        isMultiSelectMode={isMultiSelectMode}
+        isPreviewMode={isPreviewMode}
+        isFitToScreen={isFitToScreen}
+        onToggleFitToScreen={handleToggleFitToScreen}
+        zoomScale={zoomScale}
+        canUndo={history.length > 0}
+        canRedo={redoStack.length > 0}
+        onAddBlock={handleAddBlock}
+        onAddBlockAtIndex={handleAddBlockAtIndex}
+        onCleanAll={handleCleanAll}
+        onExportHtml={handleExportHtml}
+        onExportPdf={() => setIsPdfExportModalOpen(true)}
+        onCopyCompiledHtml={handleCopyCompiledHtml}
+        onShareProject={() => setIsShareModalOpen(true)}
+        onOpenLivePreview={() => setIsLivePreviewModalOpen(true)}
+        onTogglePreviewMode={() => setIsPreviewMode((prev) => !prev)}
+        onOpenThemeSettings={() => {
+          setIsDesignModeOpen(true);
+          setDesignActiveTab('theme');
+        }}
+        onOpenSeoSettings={() => {
+          setIsDesignModeOpen(true);
+          setDesignActiveTab('seo');
+        }}
+        onOpenBlockParameters={handleOpenBlockParameters}
+        onOpenCodeEditor={(id) => setCodeEditorBlockId(id)}
+        onOpenTemplateGallery={() => setIsTemplateGalleryOpen(true)}
+        onOpenRevisionHistory={() => setIsRevisionHistoryOpen(true)}
+        onOpenClipboard={() => setIsClipboardModalOpen(true)}
+        onOpenDesignStudio={() => setIsStudioViewerOpen(true)}
+        onToggleDesignSidebar={() => setIsDesignModeOpen((prev) => !prev)}
+        onToggleThemeMode={handleToggleThemeMode}
+        onSetViewport={handleViewportChange}
+        onToggleAutoVerticalRhythm={handleToggleAutoVerticalRhythm}
+        onApplyVerticalRhythm={handleApplyVerticalRhythm}
+        onToggleMultiSelectMode={() => setIsMultiSelectMode((prev) => !prev)}
+        onSelectAllBlocks={handleSelectAllBlocks}
+        onDeselectAllBlocks={handleDeselectAllBlocks}
+        onUndo={handleUndo}
+        onRedo={handleRedo}
+        onDuplicateBlock={handleDuplicate}
+        onDeleteBlock={handleDelete}
+        onMoveBlockUp={handleMoveUp}
+        onMoveBlockDown={handleMoveDown}
+        onCopyBlock={handleCopyBlock}
+        onPasteLatest={handlePasteLatest}
+        onCopyBlockStyle={handleCopyBlockStyle}
+        onPasteBlockStyle={handlePasteBlockStyle}
+        onCopyBlockJson={handleCopyBlockJson}
       />
 
       {/* Floating Clipboard / Action Toast Notification */}

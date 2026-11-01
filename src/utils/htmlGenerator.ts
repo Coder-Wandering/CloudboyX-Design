@@ -242,11 +242,14 @@ export function generateCompleteHtml(
           </div>
 
           <div class="studio-quick-add-footer">
-            <button type="button" class="studio-quick-action-btn" data-divider-action="paste" data-insert-index="${insertIndex}">
+            <button type="button" class="studio-quick-action-btn" data-divider-action="paste" data-insert-index="${insertIndex}" title="Paste latest copied section from clipboard">
               📋 Paste Clipboard
             </button>
-            <button type="button" class="studio-quick-action-btn primary" data-divider-action="library" data-insert-index="${insertIndex}">
-              ⚡ Full Library Drawer →
+            <button type="button" class="studio-quick-action-btn" data-divider-action="modal" data-insert-index="${insertIndex}" title="Open full searchable block popover modal">
+              ⚡ Expanded Modal ↗
+            </button>
+            <button type="button" class="studio-quick-action-btn primary" data-divider-action="library" data-insert-index="${insertIndex}" title="Open component library drawer in sidebar">
+              📦 Full Library Drawer →
             </button>
           </div>
         </div>
@@ -762,6 +765,21 @@ export function generateCompleteHtml(
       height: 10px;
       stroke-width: 3.2;
       flex-shrink: 0;
+    }
+    .studio-block-divider-btn * {
+      pointer-events: none;
+    }
+    .studio-quick-card * {
+      pointer-events: none;
+    }
+    .studio-quick-action-btn * {
+      pointer-events: none;
+    }
+    .studio-quick-cat-btn * {
+      pointer-events: none;
+    }
+    .studio-popover-close-btn * {
+      pointer-events: none;
     }
 
     [data-bs-theme="dark"] .studio-block-divider-line {
@@ -1896,6 +1914,62 @@ export function generateCompleteHtml(
         initBlockDragHandles();
         initBoundaryDragAndDrop();
 
+        // Attach dedicated direct click handlers to every block boundary inserter and '+' button
+        function initDividerInserters() {
+          var inserters = document.querySelectorAll('.studio-block-divider-inserter');
+          inserters.forEach(function(inserter) {
+            var btn = inserter.querySelector('.studio-block-divider-btn');
+            var dropdown = inserter.querySelector('.studio-quick-add-popover, .studio-divider-dropdown');
+
+            function toggleDropdown(ev) {
+              var target = ev.target;
+              if (target && target.nodeType !== 1) {
+                target = target.parentElement;
+              }
+              if (target && target.closest && target.closest('.studio-quick-add-popover, .studio-divider-dropdown')) {
+                return;
+              }
+              ev.preventDefault();
+              ev.stopPropagation();
+
+              var wasOpen = dropdown ? dropdown.classList.contains('is-open') : false;
+              document.querySelectorAll('.studio-quick-add-popover.is-open, .studio-divider-dropdown.is-open').forEach(function(d) {
+                d.classList.remove('is-open');
+              });
+              document.querySelectorAll('.studio-block-divider-inserter.has-open-dropdown').forEach(function(ins) {
+                ins.classList.remove('has-open-dropdown');
+              });
+
+              if (!wasOpen && dropdown) {
+                dropdown.classList.add('is-open');
+                inserter.classList.add('has-open-dropdown');
+                try {
+                  dropdown.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                } catch(err) {}
+                var searchInp = dropdown.querySelector('.studio-quick-add-search-input');
+                if (searchInp) {
+                  setTimeout(function() { searchInp.focus(); }, 60);
+                }
+              }
+            }
+
+            if (btn) {
+              btn.addEventListener('click', toggleDropdown);
+            }
+            inserter.addEventListener('click', function(ev) {
+              var target = ev.target;
+              if (target && target.nodeType !== 1) {
+                target = target.parentElement;
+              }
+              if (target === inserter || (target && target.classList && target.classList.contains('studio-block-divider-line'))) {
+                toggleDropdown(ev);
+              }
+            });
+          });
+        }
+
+        initDividerInserters();
+
         document.addEventListener('dragend', function() {
           clearDropTargets();
         });
@@ -1910,7 +1984,13 @@ export function generateCompleteHtml(
 
         // Intercept link clicks in editor mode to prevent page unloading
         document.addEventListener('click', function(e) {
-          var link = e.target.closest('a');
+          var targetEl = e.target;
+          if (targetEl && targetEl.nodeType !== 1) {
+            targetEl = targetEl.parentElement;
+          }
+          if (!targetEl || typeof targetEl.closest !== 'function') return;
+
+          var link = targetEl.closest('a');
           if (link) {
             var href = link.getAttribute('href');
             // If it's an anchor or dummy link, keep default anchor scroll or prevent reload
@@ -1922,7 +2002,7 @@ export function generateCompleteHtml(
           }
 
           // Close popover on close button click
-          var closePopoverBtn = e.target.closest('[data-close-popover]');
+          var closePopoverBtn = targetEl.closest('[data-close-popover]');
           if (closePopoverBtn) {
             e.preventDefault();
             e.stopPropagation();
@@ -1936,7 +2016,7 @@ export function generateCompleteHtml(
           }
 
           // Check if clicking a Quick Add Block Card
-          var quickCard = e.target.closest('[data-quick-add-type]');
+          var quickCard = targetEl.closest('[data-quick-add-type]');
           if (quickCard) {
             e.preventDefault();
             e.stopPropagation();
@@ -1958,7 +2038,7 @@ export function generateCompleteHtml(
           }
 
           // Check if clicking category filter tabs inside Quick Add Popover
-          var catBtn = e.target.closest('.studio-quick-cat-btn');
+          var catBtn = targetEl.closest('.studio-quick-cat-btn');
           if (catBtn) {
             e.preventDefault();
             e.stopPropagation();
@@ -1983,7 +2063,7 @@ export function generateCompleteHtml(
           }
 
           // Check if clicking a divider dropdown item
-          var dropdownItem = e.target.closest('[data-divider-action]');
+          var dropdownItem = targetEl.closest('[data-divider-action]');
           if (dropdownItem) {
             e.preventDefault();
             e.stopPropagation();
@@ -1998,7 +2078,12 @@ export function generateCompleteHtml(
               ins.classList.remove('has-open-dropdown');
             });
 
-            if (action === 'library') {
+            if (action === 'modal') {
+              window.parent.postMessage({
+                type: 'OPEN_QUICK_ADD_POPOVER',
+                insertIndex: targetIdx
+              }, '*');
+            } else if (action === 'library') {
               window.parent.postMessage({
                 type: 'ADD_SECTION_AT_INDEX',
                 insertIndex: targetIdx
@@ -2017,14 +2102,17 @@ export function generateCompleteHtml(
             return;
           }
 
-          // Check if clicking a divider inserter button to toggle dropdown menu
-          var dividerBtn = e.target.closest('.studio-block-divider-btn');
-          if (dividerBtn) {
+          // Check if clicking a divider inserter button or line
+          var dividerBtn = targetEl.closest('.studio-block-divider-btn, .studio-block-divider-inserter');
+          if (dividerBtn && !targetEl.closest('.studio-quick-add-popover, .studio-divider-dropdown')) {
             e.preventDefault();
             e.stopPropagation();
-            var parentInserter = dividerBtn.closest('.studio-block-divider-inserter');
+            var parentInserter = dividerBtn.classList.contains('studio-block-divider-inserter')
+              ? dividerBtn
+              : dividerBtn.closest('.studio-block-divider-inserter');
             var dropdown = parentInserter ? parentInserter.querySelector('.studio-quick-add-popover, .studio-divider-dropdown') : null;
-            var insertIndex = parseInt(dividerBtn.getAttribute('data-insert-index') || '0', 10);
+            var insertIndexAttr = dividerBtn.getAttribute('data-insert-index') || (parentInserter ? parentInserter.getAttribute('data-insert-index') : '0');
+            var insertIndex = parseInt(insertIndexAttr || '0', 10);
             if (dropdown) {
               var wasOpen = dropdown.classList.contains('is-open');
               document.querySelectorAll('.studio-quick-add-popover.is-open, .studio-divider-dropdown.is-open').forEach(function(d) {
@@ -2042,17 +2130,16 @@ export function generateCompleteHtml(
                 if (searchInp) {
                   setTimeout(function() { searchInp.focus(); }, 60);
                 }
-                window.parent.postMessage({
-                  type: 'OPEN_QUICK_ADD_POPOVER',
-                  insertIndex: insertIndex
-                }, '*');
+                try {
+                  dropdown.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                } catch(err) {}
               }
             }
             return;
           }
 
           // Prevent click inside popover from closing itself
-          if (e.target.closest('.studio-quick-add-popover, .studio-divider-dropdown')) {
+          if (targetEl.closest('.studio-quick-add-popover, .studio-divider-dropdown')) {
             return;
           }
 
@@ -2065,7 +2152,7 @@ export function generateCompleteHtml(
           });
 
           // Check if clicking an explicit open-code-editor trigger inside a block
-          var codeTrigger = e.target.closest('[data-action="open-code-editor"]');
+          var codeTrigger = targetEl.closest('[data-action="open-code-editor"]');
           if (codeTrigger) {
             var parentBlock = codeTrigger.closest('[data-block-id]');
             if (parentBlock) {
@@ -2081,7 +2168,7 @@ export function generateCompleteHtml(
           }
 
           // Check if clicking a block
-          var blockEl = e.target.closest('[data-block-id]');
+          var blockEl = targetEl.closest('[data-block-id]');
           if (blockEl) {
             var blockId = blockEl.getAttribute('data-block-id');
             var isMultiToggle = Boolean(e.shiftKey || e.ctrlKey || e.metaKey || isMultiSelectMode);
@@ -2098,8 +2185,14 @@ export function generateCompleteHtml(
 
         // Inline contenteditable changes and popover search filter
         document.addEventListener('input', function(e) {
+          var targetEl = e.target;
+          if (targetEl && targetEl.nodeType !== 1) {
+            targetEl = targetEl.parentElement;
+          }
+          if (!targetEl || typeof targetEl.closest !== 'function') return;
+
           // Quick add search filtering
-          var searchInput = e.target.closest('.studio-quick-add-search-input');
+          var searchInput = targetEl.closest('.studio-quick-add-search-input');
           if (searchInput) {
             var popover = searchInput.closest('.studio-quick-add-popover');
             if (popover) {
@@ -2117,7 +2210,7 @@ export function generateCompleteHtml(
             return;
           }
 
-          var target = e.target.closest('[data-field]');
+          var target = targetEl.closest('[data-field]');
           if (target) {
             var blockEl = target.closest('[data-block-id]');
             if (blockEl) {
@@ -2147,7 +2240,7 @@ export function generateCompleteHtml(
           var isEditingText = e.target.isContentEditable || e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA';
           if (!isEditingText && (e.ctrlKey || e.metaKey)) {
             var k = e.key.toLowerCase();
-            if (k === 'c' || k === 'v' || k === 'z' || k === 'y') {
+            if (k === 'c' || k === 'v' || k === 'z' || k === 'y' || k === 'k' || k === 'b') {
               window.parent.postMessage({
                 type: 'IFRAME_KEYBOARD_SHORTCUT',
                 key: e.key,

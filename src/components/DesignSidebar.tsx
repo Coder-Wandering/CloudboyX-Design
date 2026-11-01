@@ -48,7 +48,8 @@ import { BlockLibraryDrawer } from './BlockLibraryDrawer';
 import { BlockSettingsDrawer } from './BlockSettingsDrawer';
 import { BlockLayoutsTab } from './BlockLayoutsTab';
 import { ThemeModal } from './ThemeModal';
-import { PresetsTab } from './PresetsTab';
+import { PresetsTab, PRESET_CATEGORY_LABELS } from './PresetsTab';
+import { BUILT_IN_BLOCK_PRESETS, getStoredPresets } from '../data/blockPresets';
 import { PageSettingsModal } from './PageSettingsModal';
 import { TemplatesModal } from './TemplatesModal';
 import { CodeModal } from './CodeModal';
@@ -277,6 +278,78 @@ export const DesignSidebar: React.FC<DesignSidebarProps> = ({
   }, [blockFilterQuery, blockCategoryFilter]);
 
   const matchingBlocksCount = matchingBlocks.length;
+
+  // Preset search & category filtering state for DesignSidebar
+  const [presetFilterQuery, setPresetFilterQuery] = useState('');
+  const [presetCategoryFilter, setPresetCategoryFilter] = useState<'all' | 'custom' | BlockCategory>('all');
+  const [customPresetsList, setCustomPresetsList] = useState<BlockPreset[]>([]);
+  const presetSearchInputRef = React.useRef<HTMLInputElement>(null);
+
+  React.useEffect(() => {
+    setCustomPresetsList(getStoredPresets());
+  }, [activeTab]);
+
+  const allSidebarPresets = useMemo(() => {
+    return [...customPresetsList, ...BUILT_IN_BLOCK_PRESETS];
+  }, [customPresetsList]);
+
+  // Filtered available block presets based on name, category, or keyword
+  const matchingPresets = useMemo(() => {
+    const q = presetFilterQuery.trim().toLowerCase();
+    const terms = q.split(/\s+/).filter(Boolean);
+
+    return allSidebarPresets.filter((preset) => {
+      // Category filter
+      if (presetCategoryFilter === 'custom') {
+        if (preset.isBuiltIn) return false;
+      } else if (presetCategoryFilter !== 'all') {
+        if (preset.category !== presetCategoryFilter && preset.block.category !== presetCategoryFilter) {
+          return false;
+        }
+      }
+
+      if (terms.length === 0) return true;
+
+      const catLabel = (PRESET_CATEGORY_LABELS[preset.category] || '').toLowerCase();
+      const blockCatLabel = (PRESET_CATEGORY_LABELS[preset.block.category] || '').toLowerCase();
+      const typeStr = preset.block.type.toLowerCase();
+      const nameStr = preset.name.toLowerCase();
+      const blockNameStr = preset.block.name.toLowerCase();
+      const catStr = preset.category.toLowerCase();
+      const blockCatStr = preset.block.category.toLowerCase();
+      const descStr = (preset.description || '').toLowerCase();
+      const tags = (preset.tags || []).map((t) => t.toLowerCase());
+      const customBuiltinStr = preset.isBuiltIn
+        ? 'curated built-in standard official'
+        : 'custom saved my-saved template user';
+      const contentValues = Object.values(preset.block.content || {})
+        .filter((v): v is string => typeof v === 'string')
+        .map((v) => v.toLowerCase());
+
+      return terms.every((term) => {
+        // Name match
+        const matchesName = nameStr.includes(term) || blockNameStr.includes(term);
+        // Category match
+        const matchesCategory =
+          catStr.includes(term) ||
+          blockCatStr.includes(term) ||
+          catLabel.includes(term) ||
+          blockCatLabel.includes(term) ||
+          customBuiltinStr.includes(term);
+        // Keyword match
+        const matchesKeyword =
+          descStr.includes(term) ||
+          typeStr.includes(term) ||
+          tags.some((t) => t.includes(term)) ||
+          contentValues.some((v) => v.includes(term)) ||
+          (preset.block.settings.bgType || '').toLowerCase().includes(term) ||
+          (preset.block.settings.textColor || '').toLowerCase().includes(term) ||
+          (preset.block.settings.buttonVariant || '').toLowerCase().includes(term);
+
+        return matchesName || matchesCategory || matchesKeyword;
+      });
+    });
+  }, [allSidebarPresets, presetCategoryFilter, presetFilterQuery]);
 
   // Global keyboard shortcut to trigger block library search (Ctrl+K or '/')
   React.useEffect(() => {
@@ -937,6 +1010,229 @@ export const DesignSidebar: React.FC<DesignSidebarProps> = ({
                       </button>
                     ))}
                   </div>
+                </div>
+              </div>
+            )}
+
+            {/* Searchable Presets Library in Presets Tab */}
+            {activeTab === 'presets' && (
+              <div className="space-y-2.5">
+                {/* Search Bar Input & Category Dropdown */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center gap-1.5">
+                    <div className="relative flex-1">
+                      <Search
+                        className={`w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none transition-colors ${
+                          presetFilterQuery
+                            ? isDark
+                              ? 'text-cyan-400'
+                              : 'text-blue-600'
+                            : 'text-slate-400'
+                        }`}
+                      />
+                      <input
+                        ref={presetSearchInputRef}
+                        id="sidebar-presets-filter-input"
+                        name="presetsFilter"
+                        type="text"
+                        placeholder="Search presets by name, category, or keyword..."
+                        value={presetFilterQuery}
+                        onChange={(e) => setPresetFilterQuery(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Escape') setPresetFilterQuery('');
+                        }}
+                        aria-label="Filter presets by name, category, or keyword"
+                        className={`w-full pl-8 pr-14 py-1.5 text-xs border rounded-lg outline-hidden focus:ring-2 transition font-medium ${
+                          isDark
+                            ? 'bg-slate-900 border-slate-800 text-slate-100 placeholder:text-slate-500 focus:border-cyan-500'
+                            : 'bg-white border-slate-200 text-slate-800 placeholder:text-slate-400 focus:border-blue-500'
+                        }`}
+                      />
+                      <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                        {presetFilterQuery ? (
+                          <>
+                            <span
+                              className={`text-[9.5px] font-mono font-bold px-1.5 py-0.2 rounded-full ${
+                                isDark
+                                  ? 'bg-cyan-950 text-cyan-300 border border-cyan-800'
+                                  : 'bg-blue-100 text-blue-700 border border-blue-200'
+                              }`}
+                            >
+                              {matchingPresets.length}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => setPresetFilterQuery('')}
+                              className="p-0.5 text-slate-400 hover:text-slate-200 cursor-pointer"
+                              title="Clear search"
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+                          </>
+                        ) : (
+                          <span className="text-[9px] font-mono text-slate-400 opacity-60">
+                            {allSidebarPresets.length}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Horizontal Scrollable Category Filter Chips */}
+                  <div className="flex items-center gap-1 overflow-x-auto no-scrollbar py-0.5 text-[10px]">
+                    {[
+                      { id: 'all', label: 'All' },
+                      { id: 'custom', label: 'Saved' },
+                      { id: 'headers', label: 'Hero' },
+                      { id: 'features', label: 'Features' },
+                      { id: 'pricing', label: 'Pricing' },
+                      { id: 'testimonials', label: 'Reviews' },
+                      { id: 'forms', label: 'Forms' },
+                      { id: 'navbars', label: 'Navbars' },
+                      { id: 'footers', label: 'Footers' },
+                      { id: 'content', label: 'Content' },
+                      { id: 'team', label: 'Team' },
+                      { id: 'gallery', label: 'Gallery' },
+                    ].map((cat) => {
+                      const isActive = presetCategoryFilter === cat.id;
+                      return (
+                        <button
+                          key={cat.id}
+                          type="button"
+                          onClick={() => setPresetCategoryFilter(cat.id as any)}
+                          className={`px-2 py-0.5 rounded-md font-semibold whitespace-nowrap transition cursor-pointer shrink-0 ${
+                            isActive
+                              ? isDark
+                                ? 'bg-cyan-500 text-slate-950 font-bold shadow-xs'
+                                : 'bg-blue-600 text-white font-bold shadow-xs'
+                              : isDark
+                              ? 'bg-slate-800/80 text-slate-400 hover:bg-slate-800 hover:text-slate-200'
+                              : 'bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900'
+                          }`}
+                        >
+                          {cat.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Live Match Counter & Reset Option */}
+                <div className="flex items-center justify-between text-[11px] px-0.5 text-slate-400">
+                  <span>
+                    Available Presets: <strong className={isDark ? 'text-cyan-400' : 'text-blue-600'}>{matchingPresets.length}</strong> of {allSidebarPresets.length}
+                  </span>
+                  {(presetFilterQuery || presetCategoryFilter !== 'all') && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPresetFilterQuery('');
+                        setPresetCategoryFilter('all');
+                      }}
+                      className={`text-[10.5px] font-semibold transition cursor-pointer ${
+                        isDark ? 'text-cyan-400 hover:text-cyan-300' : 'text-blue-600 hover:text-blue-700'
+                      }`}
+                    >
+                      Clear Filter
+                    </button>
+                  )}
+                </div>
+
+                {/* Presets List */}
+                <div className="space-y-1.5 max-h-64 overflow-y-auto pr-0.5">
+                  {matchingPresets.length === 0 ? (
+                    <div
+                      className={`p-4 rounded-xl border text-center text-xs space-y-2 ${
+                        isDark ? 'bg-slate-900/40 border-slate-800 text-slate-400' : 'bg-slate-50 border-slate-200 text-slate-500'
+                      }`}
+                    >
+                      <p>
+                        No presets match &ldquo;<strong>{presetFilterQuery}</strong>&rdquo;
+                        {presetCategoryFilter !== 'all' ? ` in category "${presetCategoryFilter}"` : ''}.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPresetFilterQuery('');
+                          setPresetCategoryFilter('all');
+                        }}
+                        className={`text-xs px-2.5 py-1 rounded-md font-semibold cursor-pointer ${
+                          isDark ? 'bg-slate-800 text-cyan-400 hover:bg-slate-700' : 'bg-white border text-blue-600 hover:bg-slate-100'
+                        }`}
+                      >
+                        Reset Search Filters
+                      </button>
+                    </div>
+                  ) : (
+                    matchingPresets.map((preset) => {
+                      const isCustom = !preset.isBuiltIn;
+                      return (
+                        <div
+                          key={preset.id}
+                          className={`p-2 rounded-lg border text-left text-xs transition flex items-start justify-between gap-2 ${
+                            isDark
+                              ? 'bg-slate-900/60 border-slate-800 hover:border-cyan-600/60 hover:bg-slate-850 text-slate-200'
+                              : 'bg-white border-slate-200 hover:border-blue-400/80 hover:bg-blue-50/40 text-slate-800 shadow-2xs'
+                          }`}
+                        >
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="font-semibold truncate">{preset.name}</span>
+                              <span
+                                className={`text-[9px] px-1.5 py-0.2 rounded-full font-bold uppercase ${
+                                  isCustom
+                                    ? 'bg-purple-500/20 text-purple-400 border border-purple-500/30'
+                                    : 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
+                                }`}
+                              >
+                                {isCustom ? 'Saved' : preset.category}
+                              </span>
+                            </div>
+                            {preset.description && (
+                              <p className="text-[11px] text-slate-400 line-clamp-1 mt-0.5">
+                                {preset.description}
+                              </p>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-1 shrink-0">
+                            {selectedBlockId && onApplyPreset && (
+                              <button
+                                type="button"
+                                onClick={() => onApplyPreset(selectedBlockId, preset)}
+                                title={`Apply ${preset.name} styling & content to selected section`}
+                                className={`px-2 py-1 rounded-md text-[10px] font-bold transition cursor-pointer border ${
+                                  isDark
+                                    ? 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700'
+                                    : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200'
+                                }`}
+                              >
+                                Apply
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (onAddPreset) {
+                                  onAddPreset(preset);
+                                } else {
+                                  onAddBlock(preset.block.type);
+                                }
+                              }}
+                              title={`Insert ${preset.name} as a new section`}
+                              className={`px-2 py-1 rounded-md text-[11px] font-bold flex items-center gap-1 transition cursor-pointer ${
+                                isDark
+                                  ? 'bg-cyan-500/15 hover:bg-cyan-500 hover:text-slate-950 text-cyan-300 border border-cyan-500/30'
+                                  : 'bg-blue-50 hover:bg-blue-600 hover:text-white text-blue-600 border border-blue-200'
+                              }`}
+                            >
+                              <Plus className="w-3 h-3 stroke-[2.5]" />
+                              <span>Add</span>
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
                 </div>
               </div>
             )}

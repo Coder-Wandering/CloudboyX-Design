@@ -31,6 +31,23 @@ import {
   RefreshCw,
 } from 'lucide-react';
 
+export const PRESET_CATEGORY_LABELS: Record<string, string> = {
+  all: 'All Presets',
+  custom: 'Saved Presets',
+  headers: 'Hero & Headers',
+  features: 'Features & Cards',
+  pricing: 'Pricing Tables',
+  testimonials: 'Testimonials',
+  forms: 'Forms & Contact',
+  navbars: 'Navbars & Menus',
+  footers: 'Footers',
+  content: 'Content & FAQ',
+  team: 'Team Showcase',
+  gallery: 'Gallery & Portfolio',
+  dividers: 'Section Dividers',
+  html: 'Custom HTML',
+};
+
 interface PresetsTabProps {
   blocks: BlockInstance[];
   selectedBlock: BlockInstance | null;
@@ -237,8 +254,11 @@ export const PresetsTab: React.FC<PresetsTabProps> = ({
   }, [customPresets]);
 
   const filteredPresets = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    const terms = q.split(/\s+/).filter(Boolean);
+
     return allPresets.filter((preset) => {
-      // Category filter
+      // Category chip filter
       if (activeCategory === 'custom') {
         if (preset.isBuiltIn) return false;
       } else if (activeCategory !== 'all') {
@@ -247,17 +267,48 @@ export const PresetsTab: React.FC<PresetsTabProps> = ({
         }
       }
 
-      // Search query
-      if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase();
-        const matchesName = preset.name.toLowerCase().includes(q);
-        const matchesDesc = (preset.description || '').toLowerCase().includes(q);
-        const matchesType = preset.block.type.toLowerCase().includes(q);
-        const matchesTags = (preset.tags || []).some((t) => t.toLowerCase().includes(q));
-        const matchesContent = Object.values(preset.block.content || {}).some(
-          (val) => typeof val === 'string' && val.toLowerCase().includes(q)
-        );
-        return matchesName || matchesDesc || matchesType || matchesTags || matchesContent;
+      // Search query filter (filtering by name, category, or keyword)
+      if (terms.length > 0) {
+        const catLabel = (PRESET_CATEGORY_LABELS[preset.category] || '').toLowerCase();
+        const blockCatLabel = (PRESET_CATEGORY_LABELS[preset.block.category] || '').toLowerCase();
+        const typeStr = preset.block.type.toLowerCase();
+        const nameStr = preset.name.toLowerCase();
+        const blockNameStr = preset.block.name.toLowerCase();
+        const catStr = preset.category.toLowerCase();
+        const blockCatStr = preset.block.category.toLowerCase();
+        const descStr = (preset.description || '').toLowerCase();
+        const tags = (preset.tags || []).map((t) => t.toLowerCase());
+        const customBuiltinStr = preset.isBuiltIn
+          ? 'curated built-in standard official'
+          : 'custom saved my-saved template user';
+        const contentValues = Object.values(preset.block.content || {})
+          .filter((v): v is string => typeof v === 'string')
+          .map((v) => v.toLowerCase());
+
+        return terms.every((term) => {
+          // 1. Name match
+          const matchesName = nameStr.includes(term) || blockNameStr.includes(term);
+
+          // 2. Category match
+          const matchesCategory =
+            catStr.includes(term) ||
+            blockCatStr.includes(term) ||
+            catLabel.includes(term) ||
+            blockCatLabel.includes(term) ||
+            customBuiltinStr.includes(term);
+
+          // 3. Keyword / tag / description / settings / content match
+          const matchesKeyword =
+            descStr.includes(term) ||
+            typeStr.includes(term) ||
+            tags.some((t) => t.includes(term)) ||
+            contentValues.some((v) => v.includes(term)) ||
+            (preset.block.settings.bgType || '').toLowerCase().includes(term) ||
+            (preset.block.settings.textColor || '').toLowerCase().includes(term) ||
+            (preset.block.settings.buttonVariant || '').toLowerCase().includes(term);
+
+          return matchesName || matchesCategory || matchesKeyword;
+        });
       }
 
       return true;
@@ -544,25 +595,78 @@ export const PresetsTab: React.FC<PresetsTabProps> = ({
       {/* Search Bar & Category Filter Bar */}
       <div className="px-3 pb-2 shrink-0 space-y-1.5">
         <div className="relative">
-          <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+          <Search
+            className={`w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 transition-colors pointer-events-none ${
+              searchQuery
+                ? isDark
+                  ? 'text-cyan-400'
+                  : 'text-blue-600'
+                : 'text-slate-400'
+            }`}
+          />
           <input
+            id="presets-search-input"
+            name="presetsSearch"
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search presets by keyword, tag, or type..."
-            className={`w-full pl-8 pr-7 py-1.5 rounded-lg text-[11px] border transition focus:outline-hidden focus:ring-1 focus:ring-blue-500 ${
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') setSearchQuery('');
+            }}
+            placeholder="Search presets by name, category, or keyword..."
+            aria-label="Filter block presets by name, category, or keyword"
+            className={`w-full pl-8 pr-14 py-1.5 rounded-lg text-[11px] border transition font-medium focus:outline-hidden focus:ring-1 ${
               isDark
-                ? 'bg-slate-900 border-slate-800 text-slate-200 placeholder-slate-500'
-                : 'bg-white border-slate-200 text-slate-800 placeholder-slate-400'
+                ? 'bg-slate-900 border-slate-800 text-slate-100 placeholder-slate-500 focus:border-cyan-500 focus:ring-cyan-500/20'
+                : 'bg-white border-slate-200 text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:ring-blue-500/10'
             }`}
           />
-          {searchQuery && (
+          <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
+            {searchQuery ? (
+              <>
+                <span
+                  className={`text-[9.5px] font-mono font-bold px-1.5 py-0.2 rounded-full ${
+                    isDark
+                      ? 'bg-cyan-950 text-cyan-300 border border-cyan-800'
+                      : 'bg-blue-100 text-blue-700 border border-blue-200'
+                  }`}
+                >
+                  {filteredPresets.length}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery('')}
+                  className="p-0.5 text-slate-400 hover:text-slate-200 cursor-pointer"
+                  title="Clear search (Esc)"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </>
+            ) : (
+              <span className="text-[9px] font-mono text-slate-400 opacity-60">
+                {allPresets.length}
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* Live Filter Summary & Reset Button */}
+        <div className="flex items-center justify-between text-[10.5px] px-0.5 text-slate-400">
+          <span>
+            Available Presets: <strong className={isDark ? 'text-cyan-400' : 'text-blue-600'}>{filteredPresets.length}</strong> of {allPresets.length}
+          </span>
+          {(searchQuery || activeCategory !== 'all') && (
             <button
               type="button"
-              onClick={() => setSearchQuery('')}
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 cursor-pointer"
+              onClick={() => {
+                setSearchQuery('');
+                setActiveCategory('all');
+              }}
+              className={`text-[10px] font-semibold transition cursor-pointer ${
+                isDark ? 'text-cyan-400 hover:text-cyan-300' : 'text-blue-600 hover:text-blue-700'
+              }`}
             >
-              <X className="w-3 h-3" />
+              Clear Filter
             </button>
           )}
         </div>
@@ -618,15 +722,32 @@ export const PresetsTab: React.FC<PresetsTabProps> = ({
             </p>
             <p className="text-[10.5px]">
               {searchQuery
-                ? `No presets matching "${searchQuery}". Try a different keyword.`
+                ? `No presets match "${searchQuery}" in ${activeCategory === 'all' ? 'any category' : activeCategory}.`
                 : 'No presets in this category yet.'}
             </p>
-            {activeCategory === 'custom' && (
+            {(searchQuery || activeCategory !== 'all') && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchQuery('');
+                  setActiveCategory('all');
+                }}
+                className={`mt-2.5 px-3 py-1 rounded-lg text-xs font-semibold cursor-pointer border transition ${
+                  isDark
+                    ? 'bg-slate-800 border-slate-700 text-cyan-400 hover:bg-slate-700'
+                    : 'bg-white border-slate-200 text-blue-600 hover:bg-slate-50'
+                }`}
+              >
+                Reset Search Filters
+              </button>
+            )}
+            {activeCategory === 'custom' && !searchQuery && (
               <p className="text-[10px] text-slate-400 mt-2">
                 Tip: Select a block on your page and click "Save as Preset" above to create one!
               </p>
             )}
           </div>
+
         ) : (
           <div
             className={`grid gap-2.5 ${
