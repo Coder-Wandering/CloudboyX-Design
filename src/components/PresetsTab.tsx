@@ -8,6 +8,9 @@ import {
   BUILT_IN_BLOCK_PRESETS,
   getStoredPresets,
   saveStoredPresets,
+  syncPresetToFirestore,
+  deletePresetFromFirestore,
+  fetchPresetsFromFirestore,
 } from '../data/blockPresets';
 import {
   Bookmark,
@@ -90,10 +93,24 @@ export const PresetsTab: React.FC<PresetsTabProps> = ({
   const [importJsonText, setImportJsonText] = useState('');
   const [importError, setImportError] = useState<string | null>(null);
 
-  // Load custom presets on mount
+  // Load custom presets on mount (localStorage + Cloud Firestore sync)
   useEffect(() => {
     const stored = getStoredPresets();
     setCustomPresets(stored);
+
+    // Fetch any cloud-synced template presets across projects
+    fetchPresetsFromFirestore().then((cloudPresets) => {
+      if (Array.isArray(cloudPresets) && cloudPresets.length > 0) {
+        setCustomPresets((prev) => {
+          const map = new Map<string, BlockPreset>();
+          cloudPresets.forEach((p) => map.set(p.id, p));
+          prev.forEach((p) => map.set(p.id, p));
+          const merged = Array.from(map.values());
+          saveStoredPresets(merged);
+          return merged;
+        });
+      }
+    }).catch(() => {});
   }, []);
 
   // Sync custom presets to storage whenever updated
@@ -145,9 +162,11 @@ export const PresetsTab: React.FC<PresetsTabProps> = ({
 
     const updated = [newPreset, ...customPresets];
     handleUpdateCustomPresets(updated);
+    // Background cloud sync across projects
+    syncPresetToFirestore(newPreset);
     setIsSavingPreset(false);
-    setSaveSuccessMsg(`Preset "${newPreset.name}" saved!`);
-    setTimeout(() => setSaveSuccessMsg(null), 3000);
+    setSaveSuccessMsg(`Preset "${newPreset.name}" saved for all projects!`);
+    setTimeout(() => setSaveSuccessMsg(null), 3500);
   };
 
   // Delete Custom Preset
@@ -155,6 +174,7 @@ export const PresetsTab: React.FC<PresetsTabProps> = ({
     if (window.confirm(`Delete custom preset "${name}"? This cannot be undone.`)) {
       const updated = customPresets.filter((p) => p.id !== id);
       handleUpdateCustomPresets(updated);
+      deletePresetFromFirestore(id);
     }
   };
 

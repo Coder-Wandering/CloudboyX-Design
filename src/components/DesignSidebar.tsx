@@ -390,17 +390,22 @@ export const DesignSidebar: React.FC<DesignSidebarProps> = ({
       badge: selectedBlock ? 'Active' : undefined,
     },
     { id: 'blocks', label: 'Add', icon: Layers, badge: blocks.length },
+    {
+      id: 'presets',
+      label: 'Saved Presets',
+      icon: BookmarkCheck,
+      badge: customPresetsList.length > 0 ? customPresetsList.length : undefined,
+    },
     { id: 'theme', label: 'Theme', icon: Palette },
     { id: 'fonts', label: 'Fonts', icon: Type },
-    { id: 'presets', label: 'Presets', icon: BookmarkCheck },
     { id: 'seo', label: 'SEO', icon: Globe },
     { id: 'overview', label: 'More', icon: LayoutDashboard },
   ];
 
   const secondaryTabs: { id: DesignSidebarTab; label: string; icon: React.ElementType }[] = [
+    { id: 'presets', label: 'Saved Presets', icon: BookmarkCheck },
     { id: 'seo', label: 'SEO Settings', icon: Globe },
     { id: 'fonts', label: 'Font Showcase', icon: Type },
-    { id: 'presets', label: 'Presets', icon: BookmarkCheck },
     { id: 'overview', label: 'Health', icon: LayoutDashboard },
     { id: 'layouts', label: 'Layouts', icon: LayoutGrid },
     { id: 'css', label: 'Custom CSS', icon: FileCode },
@@ -430,6 +435,8 @@ export const DesignSidebar: React.FC<DesignSidebarProps> = ({
           <span className="text-xs font-bold tracking-wider uppercase text-slate-200 truncate">
             {activeTab === 'settings' && selectedBlock
               ? selectedBlock.name
+              : activeTab === 'presets'
+              ? 'Saved Presets'
               : activeTab === 'seo'
               ? 'SEO Settings'
               : activeTab === 'fonts'

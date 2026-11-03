@@ -55,6 +55,17 @@ const CATEGORY_TABS: { id: 'all' | BlockCategory; label: string; icon: React.Ele
   { id: 'footers', label: 'Footers', icon: PanelBottom },
 ];
 
+const SUGGESTED_POPULAR_CARDS = [
+  { type: 'hero-split', name: 'Hero Split', icon: '⚡', badge: 'Popular Header' },
+  { type: 'hero-centered', name: 'Hero Centered', icon: '🎯', badge: 'Impact Title' },
+  { type: 'features-3col', name: 'Features 3-Col', icon: '✦', badge: 'Essential Highlights' },
+  { type: 'pricing-tiers', name: 'Pricing Tiers', icon: '💎', badge: 'Converting Plans' },
+  { type: 'testimonials-cards', name: 'Testimonials', icon: '💬', badge: 'Social Proof' },
+  { type: 'contact-split', name: 'Contact Form', icon: '✉', badge: 'Lead Capture' },
+  { type: 'media-carousel', name: 'Media Carousel', icon: '🎬', badge: 'Visual Showcase' },
+  { type: 'gallery-grid', name: 'Gallery Grid', icon: '🖼', badge: 'Portfolio Showcase' },
+];
+
 export const QuickAddBlockPopover: React.FC<QuickAddBlockPopoverProps> = ({
   isOpen,
   onClose,
@@ -185,8 +196,9 @@ export const QuickAddBlockPopover: React.FC<QuickAddBlockPopoverProps> = ({
             </div>
             <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <h3 id="quick-add-title" className="text-sm font-bold text-slate-900 dark:text-white truncate">
-                  Quick Add Section
+                <h3 id="quick-add-title" className="text-sm font-bold text-slate-900 dark:text-white truncate flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-blue-600 dark:text-cyan-400" />
+                  Quick Insert Template
                 </h3>
                 <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-950/80 dark:text-blue-300 border border-blue-200 dark:border-blue-800 shrink-0">
                   Slot #{insertIndex + 1}
@@ -269,6 +281,50 @@ export const QuickAddBlockPopover: React.FC<QuickAddBlockPopoverProps> = ({
 
         {/* Blocks Catalog Grid */}
         <div className="flex-1 overflow-y-auto p-3 sm:p-4 min-h-[260px] max-h-[50vh]">
+          {/* Suggested Templates Showcase (Top Recommendations) */}
+          {!searchQuery && selectedCategory === 'all' && (
+            <div className={`mb-4 p-3 rounded-xl border ${
+              isDark
+                ? 'bg-slate-800/40 border-slate-700/80'
+                : 'bg-blue-50/60 border-blue-200/80'
+            }`}>
+              <div className="flex items-center justify-between mb-2 px-0.5">
+                <span className="text-[10.5px] font-bold uppercase tracking-wider text-blue-600 dark:text-cyan-400 flex items-center gap-1.5 font-mono">
+                  <Sparkles className="w-3.5 h-3.5" />
+                  Suggested Templates (Most Frequently Used)
+                </span>
+                <span className="text-[9.5px] font-mono text-emerald-600 dark:text-emerald-400 font-semibold">
+                  1-Click Insert
+                </span>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+                {SUGGESTED_POPULAR_CARDS.map((tmpl) => (
+                  <button
+                    key={tmpl.type}
+                    type="button"
+                    onClick={() => handleSelectBlock(tmpl.type)}
+                    className={`flex items-center gap-2 p-2 rounded-lg text-left border transition cursor-pointer group hover:scale-[1.02] ${
+                      isDark
+                        ? 'bg-slate-800/90 hover:bg-slate-750 border-slate-700/80 hover:border-cyan-400 text-slate-100 shadow-xs'
+                        : 'bg-white hover:bg-blue-50 border-slate-200 hover:border-blue-400 text-slate-800 shadow-xs'
+                    }`}
+                    title={`Insert ${tmpl.name} at slot #${insertIndex + 1}`}
+                  >
+                    <span className="text-base shrink-0 group-hover:scale-110 transition-transform">{tmpl.icon}</span>
+                    <div className="min-w-0 flex-1">
+                      <div className="text-[11px] font-bold truncate leading-tight group-hover:text-blue-600 dark:group-hover:text-cyan-300">
+                        {tmpl.name}
+                      </div>
+                      <div className="text-[9px] text-slate-400 truncate leading-tight">
+                        {tmpl.badge}
+                      </div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           {filteredBlocks.length === 0 ? (
             <div className="text-center py-10 space-y-2">
               <p className="text-xs font-semibold text-slate-500">

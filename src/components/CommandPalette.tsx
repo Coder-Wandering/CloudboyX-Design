@@ -41,11 +41,14 @@ import {
   Minimize2,
   ArrowRight,
   BookOpen,
+  Loader2,
+  Bot,
+  Wand2,
 } from 'lucide-react';
 import { BlockInstance, SiteTheme, SeoSettings, ViewportMode } from '../types';
 import { BLOCK_DEFINITIONS } from '../data/blockDefinitions';
 
-export type CommandCategory = 'all' | 'action' | 'block' | 'setting' | 'viewport';
+export type CommandCategory = 'all' | 'ai' | 'action' | 'block' | 'setting' | 'viewport';
 
 export interface CommandPaletteProps {
   isOpen: boolean;
@@ -68,7 +71,7 @@ export interface CommandPaletteProps {
   zoomScale?: number;
   // Handlers
   onAddBlock: (type: string) => void;
-  onAddBlockAtIndex?: (type: string, targetIndex: number) => void;
+  onAddBlockAtIndex?: (type: string, targetIndex: number, contentPatch?: Record<string, any>) => void;
   onCleanAll?: () => void;
   onExportHtml: () => void;
   onExportPdf?: () => void;
@@ -106,9 +109,20 @@ export interface CommandPaletteProps {
   onCopyBlockJson?: (block: BlockInstance) => void;
 }
 
+export interface AiBlockMatch {
+  blockType: string;
+  name: string;
+  category?: string;
+  matchScore: number;
+  relevanceReason: string;
+  suggestedTitle: string;
+  suggestedSubtitle?: string;
+  badge?: string;
+}
+
 interface PaletteItem {
   id: string;
-  category: 'action' | 'block' | 'setting' | 'viewport';
+  category: 'action' | 'block' | 'setting' | 'viewport' | 'ai';
   title: string;
   subtitle: string;
   keywords: string[];
@@ -119,6 +133,110 @@ interface PaletteItem {
   badge: string;
   badgeColor: string;
   perform: () => void;
+}
+
+const SAMPLE_AI_PROMPTS = [
+  'Customer reviews section with 5-star ratings and client avatars',
+  '3-tier pricing comparison table with monthly & annual packages',
+  'Hero section with high-impact bold headline and 2 CTA buttons',
+  '3-column grid highlighting key features, modern icons and benefits',
+  'Contact inquiry form with name, email, and message inputs',
+  'Interactive video and media carousel slider with controls',
+  'Collapsible FAQ accordion for common customer questions',
+  'Team members grid showcase with photos, job titles and bios',
+  'Custom HTML block with split-pane code editor',
+  'Blank container row with responsive Bootstrap 5 spacing',
+];
+
+function fallbackLocalAiSearch(queryStr: string, limit = 5): AiBlockMatch[] {
+  const q = queryStr.toLowerCase().trim();
+  const tokens = q.split(/[\s,.-]+/).filter((t) => t.length > 2);
+
+  const scored = BLOCK_DEFINITIONS.map((def) => {
+    let score = 55;
+    const nameLower = def.name.toLowerCase();
+    const descLower = (def.description || '').toLowerCase();
+    const typeLower = def.type.toLowerCase();
+    const tags = def.tags || [];
+
+    if (nameLower.includes(q) || typeLower.includes(q)) score += 35;
+    if (descLower.includes(q)) score += 25;
+
+    tokens.forEach((t) => {
+      if (nameLower.includes(t)) score += 15;
+      if (descLower.includes(t)) score += 10;
+      if (tags.some((tag) => tag.toLowerCase().includes(t))) score += 15;
+    });
+
+    // Domain intent boosts
+    if (/review|star|rating|testimonial|quote|feedback|social proof|client/i.test(q)) {
+      if (def.type === 'testimonials-cards') score += 45;
+    }
+    if (/price|pricing|plan|tier|cost|subscription|checkout|rate|pay/i.test(q)) {
+      if (def.type === 'pricing-tiers') score += 45;
+    }
+    if (/hero|headline|welcome|banner|frontpage|intro|cta|landing|title/i.test(q)) {
+      if (def.type === 'hero-split' || def.type === 'hero-centered') score += 40;
+    }
+    if (/contact|form|email|reach|message|inquir|support|lead/i.test(q)) {
+      if (def.type === 'contact-split') score += 45;
+    }
+    if (/feature|highlight|benefit|grid|service|capability/i.test(q)) {
+      if (def.type === 'features-3col' || def.type === 'features-split') score += 40;
+    }
+    if (/carousel|slide|video|media|slider|player|showcase/i.test(q)) {
+      if (def.type === 'media-carousel') score += 45;
+    }
+    if (/gallery|photo|image|portfolio|grid/i.test(q)) {
+      if (def.type === 'gallery-grid') score += 45;
+    }
+    if (/faq|question|answer|accordion|help|troubleshoot/i.test(q)) {
+      if (def.type.includes('faq') || def.type.includes('accordion')) score += 45;
+    }
+    if (/team|staff|people|member|leadership|founder/i.test(q)) {
+      if (def.type.includes('team')) score += 45;
+    }
+    if (/code|html|css|script|embed|custom/i.test(q)) {
+      if (def.type === 'custom-html') score += 45;
+    }
+    if (/blank|empty|container|row|wrapper/i.test(q)) {
+      if (def.type === 'blank-container') score += 40;
+    }
+
+    const cleanTokens = q.replace(/[^a-zA-Z0-9\s]/g, '').split(/\s+/).slice(0, 4);
+    const suggestedHeadline = cleanTokens.length > 0
+      ? cleanTokens.map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')
+      : def.name;
+
+    let relevanceReason = `Matches natural language intent for ${def.category} (${def.name}).`;
+    if (def.type === 'testimonials-cards') {
+      relevanceReason = 'Features customer review cards and star ratings to build immediate trust.';
+    } else if (def.type === 'pricing-tiers') {
+      relevanceReason = 'Displays multi-tier pricing plans with feature checklists and call-to-actions.';
+    } else if (def.type === 'hero-split' || def.type === 'hero-centered') {
+      relevanceReason = 'Delivers a high-conversion hero layout with bold headlines and CTA buttons.';
+    } else if (def.type === 'features-3col') {
+      relevanceReason = 'Presents core product capabilities in a structured 3-column benefit grid.';
+    } else if (def.type === 'contact-split') {
+      relevanceReason = 'Includes ready-to-use input fields to capture leads and customer inquiries.';
+    } else if (def.type === 'media-carousel') {
+      relevanceReason = 'Provides dynamic interactive media slides with pagination controls.';
+    }
+
+    return {
+      blockType: def.type,
+      name: def.name,
+      category: def.category,
+      matchScore: Math.min(score, 98),
+      relevanceReason,
+      suggestedTitle: `${suggestedHeadline}`,
+      suggestedSubtitle: def.description || `Tailored ${def.name} section for: "${queryStr}"`,
+      badge: score >= 85 ? 'Top AI Match' : 'Recommended',
+    };
+  });
+
+  scored.sort((a, b) => b.matchScore - a.matchScore);
+  return scored.slice(0, limit);
 }
 
 export const CommandPalette: React.FC<CommandPaletteProps> = ({
@@ -181,6 +299,10 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
   const [query, setQuery] = useState('');
   const [activeCategory, setActiveCategory] = useState<CommandCategory>('all');
   const [selectedIndex, setSelectedIndex] = useState(0);
+  const [isAiSearching, setIsAiSearching] = useState(false);
+  const [aiMatches, setAiMatches] = useState<AiBlockMatch[]>([]);
+  const [aiError, setAiError] = useState<string | null>(null);
+  const [lastAiQuery, setLastAiQuery] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const isDark = themeMode === 'dark';
@@ -193,6 +315,55 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
     }
     return blocks.length;
   }, [blocks, selectedBlock]);
+
+  // Execute natural language AI search via server API or local semantic matcher
+  const handlePerformAiSearch = useCallback(async (naturalQuery: string) => {
+    const q = naturalQuery.trim();
+    if (!q) return;
+    setIsAiSearching(true);
+    setAiError(null);
+    setLastAiQuery(q);
+
+    try {
+      const res = await fetch('/api/ai/search-blocks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: q, limit: 6 }),
+      });
+
+      if (!res.ok) {
+        throw new Error(`Server returned ${res.status}`);
+      }
+
+      const data = await res.json();
+      if (Array.isArray(data.matches) && data.matches.length > 0) {
+        setAiMatches(data.matches);
+      } else {
+        setAiMatches(fallbackLocalAiSearch(q, 6));
+      }
+    } catch (err: any) {
+      console.warn('AI search request failed, using semantic fallback:', err?.message || err);
+      setAiMatches(fallbackLocalAiSearch(q, 6));
+    } finally {
+      setIsAiSearching(false);
+    }
+  }, []);
+
+  // Automatic block insertion upon AI selection
+  const handleSelectAiMatch = useCallback(
+    (match: AiBlockMatch) => {
+      if (onAddBlockAtIndex) {
+        onAddBlockAtIndex(match.blockType, activeInsertIndex, {
+          title: match.suggestedTitle,
+          description: match.suggestedSubtitle,
+        });
+      } else {
+        onAddBlock(match.blockType);
+      }
+      onClose();
+    },
+    [onAddBlockAtIndex, onAddBlock, activeInsertIndex, onClose]
+  );
 
   // Build the complete list of searchable palette items
   const allItems: PaletteItem[] = useMemo(() => {
@@ -1100,7 +1271,28 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
   // Filter items based on active category and search query
   const filteredItems = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return allItems.filter((item) => {
+
+    // If active category is AI Search, render AI matches as palette items
+    if (activeCategory === 'ai') {
+      return aiMatches.map((match, idx) => ({
+        id: `ai-match-${match.blockType}-${idx}`,
+        category: 'ai' as const,
+        title: match.suggestedTitle || match.name,
+        subtitle: `${match.relevanceReason} (${match.suggestedSubtitle})`,
+        keywords: [match.name, match.blockType, match.category, 'ai', q],
+        icon: Wand2,
+        iconColor: 'text-purple-400',
+        iconBg: isDark ? 'bg-purple-950/60' : 'bg-purple-50',
+        badge: match.badge || `${match.matchScore}% Match`,
+        badgeColor:
+          match.matchScore >= 85
+            ? 'bg-purple-500/20 text-purple-400 border-purple-500/40'
+            : 'bg-indigo-500/20 text-indigo-400 border-indigo-500/40',
+        perform: () => handleSelectAiMatch(match),
+      }));
+    }
+
+    const baseFiltered = allItems.filter((item) => {
       // Category filter
       if (activeCategory !== 'all') {
         if (item.category !== activeCategory) {
@@ -1119,7 +1311,30 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
 
       return titleMatch || subtitleMatch || categoryMatch || keywordMatch || shortcutMatch;
     });
-  }, [allItems, activeCategory, query]);
+
+    // In 'all' category with a query of 3+ chars, prepend an AI query action item
+    if (activeCategory === 'all' && q.length >= 3) {
+      const aiPromptItem: PaletteItem = {
+        id: 'action-trigger-ai-search',
+        category: 'ai',
+        title: `✨ Ask Gemini AI: "${query.trim()}"`,
+        subtitle: `Find best-matching Bootstrap components with tailored copy using natural language`,
+        keywords: [query.trim(), 'ai', 'gemini', 'natural language', 'find block'],
+        icon: Sparkles,
+        iconColor: 'text-purple-400',
+        iconBg: isDark ? 'bg-purple-950/60' : 'bg-purple-50',
+        badge: 'Gemini AI',
+        badgeColor: 'bg-gradient-to-r from-purple-500/20 to-cyan-500/20 text-purple-400 border-purple-500/40',
+        perform: () => {
+          setActiveCategory('ai');
+          handlePerformAiSearch(query.trim());
+        },
+      };
+      return [aiPromptItem, ...baseFiltered];
+    }
+
+    return baseFiltered;
+  }, [allItems, activeCategory, query, aiMatches, isDark, handleSelectAiMatch, handlePerformAiSearch]);
 
   // Keep selected index within bounds
   useEffect(() => {
@@ -1150,6 +1365,16 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
         );
       } else if (e.key === 'Enter') {
         e.preventDefault();
+        // If in AI category and the user pressed Enter on a query that hasn't been searched yet
+        if (
+          activeCategory === 'ai' &&
+          query.trim() &&
+          (aiMatches.length === 0 || query.trim() !== lastAiQuery)
+        ) {
+          handlePerformAiSearch(query.trim());
+          return;
+        }
+
         if (filteredItems[selectedIndex]) {
           filteredItems[selectedIndex].perform();
         }
@@ -1158,16 +1383,19 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
         onClose();
       } else if (e.key === 'Tab') {
         e.preventDefault();
-        // Cycle categories
-        const categories: CommandCategory[] = ['all', 'action', 'block', 'setting', 'viewport'];
+        // Cycle categories including 'ai'
+        const categories: CommandCategory[] = ['all', 'ai', 'action', 'block', 'setting', 'viewport'];
         const currentIdx = categories.indexOf(activeCategory);
         const nextIdx = e.shiftKey
           ? (currentIdx - 1 + categories.length) % categories.length
           : (currentIdx + 1) % categories.length;
         setActiveCategory(categories[nextIdx]);
+        if (categories[nextIdx] === 'ai' && query.trim() && query.trim() !== lastAiQuery) {
+          handlePerformAiSearch(query.trim());
+        }
       }
     },
-    [filteredItems, selectedIndex, onClose, activeCategory]
+    [filteredItems, selectedIndex, onClose, activeCategory, query, aiMatches.length, lastAiQuery, handlePerformAiSearch]
   );
 
   // Auto-scroll selected element into view
@@ -1184,6 +1412,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
 
   const categoryCounts = {
     all: allItems.length,
+    ai: aiMatches.length,
     action: allItems.filter((i) => i.category === 'action').length,
     block: allItems.filter((i) => i.category === 'block').length,
     setting: allItems.filter((i) => i.category === 'setting').length,
@@ -1211,18 +1440,30 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
       >
         {/* Top Header & Search Input */}
         <div className={`p-4 border-b flex items-center gap-3 ${isDark ? 'border-slate-800' : 'border-slate-100'}`}>
-          <div className="w-8 h-8 rounded-xl bg-blue-500/15 border border-blue-500/30 flex items-center justify-center text-blue-500 shrink-0">
-            <Command className="w-4 h-4 stroke-[2.4]" />
+          <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 border ${
+            activeCategory === 'ai'
+              ? 'bg-purple-500/15 border-purple-500/30 text-purple-400'
+              : 'bg-blue-500/15 border-blue-500/30 text-blue-500'
+          }`}>
+            {activeCategory === 'ai' ? (
+              <Sparkles className="w-4 h-4 stroke-[2.4]" />
+            ) : (
+              <Command className="w-4 h-4 stroke-[2.4]" />
+            )}
           </div>
 
-          <div className="flex-1 relative flex items-center">
+          <div className="flex-1 relative flex items-center gap-2">
             <input
               ref={inputRef}
               type="text"
               id="command-palette-search-input"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search actions, insert blocks, or jump to settings... (e.g. 'hero', 'clean all', 'export')"
+              placeholder={
+                activeCategory === 'ai'
+                  ? "Describe section in natural language... (e.g. '3-tier pricing table with monthly & annual packages')"
+                  : "Search actions, insert blocks, or jump to settings... (e.g. 'hero', 'clean all', 'export')"
+              }
               className={`w-full bg-transparent text-sm sm:text-base font-medium placeholder-slate-400 focus:outline-hidden pr-8 ${
                 isDark ? 'text-white' : 'text-slate-900'
               }`}
@@ -1239,7 +1480,55 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
             )}
           </div>
 
-          <div className="flex items-center gap-1.5 shrink-0">
+          {/* AI Search Action / Ask Button */}
+          <div className="flex items-center gap-2 shrink-0">
+            {activeCategory === 'ai' ? (
+              <button
+                type="button"
+                onClick={() => handlePerformAiSearch(query)}
+                disabled={isAiSearching || !query.trim()}
+                className={`px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+                  isAiSearching
+                    ? 'bg-purple-900/50 text-purple-300 border border-purple-500/30'
+                    : query.trim()
+                    ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-xs hover:brightness-110'
+                    : 'bg-slate-800/40 text-slate-500 border border-slate-700/50 cursor-not-allowed'
+                }`}
+                title="Query Gemini AI for natural language match"
+              >
+                {isAiSearching ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <span>Searching...</span>
+                  </>
+                ) : (
+                  <>
+                    <Wand2 className="w-3.5 h-3.5" />
+                    <span>Ask AI</span>
+                  </>
+                )}
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveCategory('ai');
+                  if (query.trim()) {
+                    handlePerformAiSearch(query.trim());
+                  }
+                }}
+                className={`hidden sm:flex px-2.5 py-1.5 rounded-xl text-xs font-semibold items-center gap-1.5 border transition-all cursor-pointer ${
+                  isDark
+                    ? 'bg-purple-950/40 border-purple-500/30 text-purple-300 hover:bg-purple-900/50'
+                    : 'bg-purple-50 border-purple-200 text-purple-700 hover:bg-purple-100'
+                }`}
+                title="Switch to AI Natural Language search"
+              >
+                <Sparkles className="w-3.5 h-3.5 text-purple-400" />
+                <span>AI Search</span>
+              </button>
+            )}
+
             <kbd
               className={`px-1.5 py-0.5 rounded text-[10px] font-mono font-bold tracking-tight border ${
                 isDark ? 'bg-slate-800 text-slate-400 border-slate-700' : 'bg-slate-100 text-slate-500 border-slate-200'
@@ -1276,6 +1565,38 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
                 : 'bg-slate-200 text-slate-600'
             }`}>
               {categoryCounts.all}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            id="command-palette-tab-ai"
+            onClick={() => {
+              setActiveCategory('ai');
+              if (query.trim() && query.trim() !== lastAiQuery) {
+                handlePerformAiSearch(query.trim());
+              }
+            }}
+            className={`px-2.5 py-1 rounded-lg transition cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
+              activeCategory === 'ai'
+                ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-2xs ring-1 ring-purple-400/40'
+                : isDark
+                ? 'text-purple-400 hover:text-white hover:bg-slate-800'
+                : 'text-purple-600 hover:text-purple-900 hover:bg-purple-50'
+            }`}
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+            <span>✨ AI Search</span>
+            <span
+              className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
+                activeCategory === 'ai'
+                  ? 'bg-purple-700 text-white'
+                  : isDark
+                  ? 'bg-purple-950/80 text-purple-300 border border-purple-500/30'
+                  : 'bg-purple-100 text-purple-700'
+              }`}
+            >
+              {aiMatches.length > 0 ? aiMatches.length : 'Gemini'}
             </span>
           </button>
 
@@ -1374,90 +1695,199 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
 
         {/* Results List */}
         <div ref={listRef} className="flex-1 overflow-y-auto p-2 space-y-1 max-h-[50vh]">
-          {filteredItems.length === 0 ? (
-            <div className="py-12 px-4 text-center">
-              <div className="w-12 h-12 rounded-2xl mx-auto mb-3 flex items-center justify-center bg-slate-500/10 text-slate-400">
-                <Search className="w-6 h-6 stroke-[1.8]" />
+          {/* AI Searching State */}
+          {activeCategory === 'ai' && isAiSearching && (
+            <div className="py-12 px-6 text-center animate-in fade-in duration-200">
+              <div className="w-14 h-14 rounded-2xl mx-auto mb-4 flex items-center justify-center bg-purple-500/15 border border-purple-500/30 text-purple-400 shadow-lg shadow-purple-500/10">
+                <Loader2 className="w-7 h-7 animate-spin" />
               </div>
-              <h4 className="text-sm font-bold">No matching commands found</h4>
-              <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
-                No items match <strong className="text-blue-500">"{query}"</strong>. Try searching for "hero", "clean all", "export", "theme", or "grid".
+              <h4 className="text-sm font-bold">Analyzing layouts with Gemini AI...</h4>
+              <p className="text-xs text-slate-400 mt-1.5 max-w-sm mx-auto">
+                Matching semantic layout blocks and tailoring copy for{' '}
+                <strong className="text-purple-400">"{query || lastAiQuery}"</strong>...
               </p>
             </div>
-          ) : (
-            filteredItems.map((item, index) => {
-              const isSelected = index === selectedIndex;
-              const IconComp = item.icon;
+          )}
 
-              return (
-                <div
-                  key={item.id}
-                  data-item-index={index}
-                  onClick={() => item.perform()}
-                  onMouseEnter={() => setSelectedIndex(index)}
-                  className={`group flex items-center justify-between gap-3 px-3 py-2.5 rounded-xl cursor-pointer transition-all border ${
-                    isSelected
-                      ? isDark
-                        ? 'bg-gradient-to-r from-blue-600/30 via-slate-800 to-cyan-500/15 border-blue-500/50 text-white shadow-sm'
-                        : 'bg-gradient-to-r from-blue-50 via-slate-50 to-blue-50/50 border-blue-300 text-slate-900 shadow-xs'
-                      : isDark
-                      ? 'border-transparent hover:bg-slate-800/60 text-slate-200'
-                      : 'border-transparent hover:bg-slate-100/80 text-slate-700'
-                  }`}
-                >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div
-                      className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 border border-slate-700/20 transition-transform ${
-                        item.iconBg
-                      } ${item.iconColor} ${isSelected ? 'scale-110 shadow-xs' : ''}`}
-                    >
-                      <IconComp className="w-4 h-4 stroke-[2.2]" />
-                    </div>
-
-                    <div className="flex flex-col min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs sm:text-sm font-semibold truncate leading-tight">
-                          {item.title}
-                        </span>
-                        <span
-                          className={`text-[9.5px] font-mono uppercase font-bold px-1.5 py-0.2 rounded-md border shrink-0 ${item.badgeColor}`}
-                        >
-                          {item.badge}
-                        </span>
-                      </div>
-                      <span className="text-[11px] text-slate-400 dark:text-slate-400 truncate mt-0.5 leading-snug">
-                        {item.subtitle}
-                      </span>
-                    </div>
+          {/* AI Category Empty Launcher (Shows Sample Prompts) */}
+          {activeCategory === 'ai' && !isAiSearching && aiMatches.length === 0 && (
+            <div className="py-4 px-2">
+              <div
+                className={`p-4 rounded-xl border mb-3 ${
+                  isDark
+                    ? 'bg-gradient-to-r from-purple-950/40 via-slate-900 to-indigo-950/40 border-purple-500/30'
+                    : 'bg-gradient-to-r from-purple-50 via-white to-indigo-50 border-purple-200'
+                }`}
+              >
+                <div className="flex items-start gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-purple-500/20 text-purple-400 flex items-center justify-center shrink-0 border border-purple-500/30">
+                    <Bot className="w-5 h-5" />
                   </div>
-
-                  <div className="flex items-center gap-2 shrink-0">
-                    {item.shortcut && (
-                      <kbd
-                        className={`hidden sm:inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-mono font-bold tracking-tight border ${
-                          isDark
-                            ? 'bg-slate-800 text-slate-300 border-slate-700'
-                            : 'bg-slate-100 text-slate-600 border-slate-200'
-                        }`}
-                      >
-                        {item.shortcut}
-                      </kbd>
-                    )}
-
-                    <div
-                      className={`w-6 h-6 rounded-lg flex items-center justify-center transition-all ${
-                        isSelected
-                          ? 'bg-blue-600 text-white'
-                          : 'opacity-0 group-hover:opacity-100 text-slate-400'
-                      }`}
-                    >
-                      <CornerDownLeft className="w-3.5 h-3.5" />
-                    </div>
+                  <div>
+                    <h4 className="text-sm font-bold flex items-center gap-2">
+                      <span>Natural Language Component Finder</span>
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-400 font-mono border border-purple-500/30 font-semibold">
+                        Gemini 3.8 Flash
+                      </span>
+                    </h4>
+                    <p className="text-xs text-slate-400 dark:text-slate-400 mt-1 leading-relaxed">
+                      Describe what you want to build in natural language. Gemini AI will recommend the ideal Bootstrap component, tailor titles/subtitles, and automatically insert it at Slot #{activeInsertIndex + 1} upon selection.
+                    </p>
                   </div>
                 </div>
-              );
-            })
+              </div>
+
+              <div className="text-[11px] font-semibold text-slate-400 dark:text-slate-400 mb-2 px-1 flex items-center gap-1.5">
+                <Sparkles className="w-3.5 h-3.5 text-purple-400" />
+                <span>Suggested natural language prompts (click to query):</span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {SAMPLE_AI_PROMPTS.slice(0, 6).map((prompt, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => {
+                      setQuery(prompt);
+                      handlePerformAiSearch(prompt);
+                    }}
+                    className={`text-left p-2.5 rounded-xl border text-xs transition-all cursor-pointer flex items-center justify-between gap-2 group ${
+                      isDark
+                        ? 'bg-slate-800/60 border-slate-700/60 hover:border-purple-500/60 hover:bg-purple-950/30 text-slate-300 hover:text-white'
+                        : 'bg-slate-50 border-slate-200 hover:border-purple-300 hover:bg-purple-50/70 text-slate-700 hover:text-purple-950'
+                    }`}
+                  >
+                    <span className="truncate">{prompt}</span>
+                    <ArrowRight className="w-3.5 h-3.5 text-purple-400 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
+                  </button>
+                ))}
+              </div>
+            </div>
           )}
+
+          {/* AI Matches Sub-Header when results are present */}
+          {activeCategory === 'ai' && !isAiSearching && aiMatches.length > 0 && (
+            <div
+              className={`px-3 py-2 rounded-xl text-xs flex items-center justify-between mb-2 border ${
+                isDark
+                  ? 'bg-purple-950/30 border-purple-500/30 text-purple-300'
+                  : 'bg-purple-50 border-purple-200 text-purple-800'
+              }`}
+            >
+              <span className="flex items-center gap-1.5">
+                <Sparkles className="w-3.5 h-3.5 text-purple-400" />
+                <span>
+                  <strong>{aiMatches.length} AI matches</strong> for &ldquo;{lastAiQuery || query}&rdquo;
+                </span>
+              </span>
+              <span className="text-[11px] font-mono text-purple-400">
+                Target Slot #{activeInsertIndex + 1}
+              </span>
+            </div>
+          )}
+
+          {/* Standard / Filtered Items List */}
+          {!(activeCategory === 'ai' && (isAiSearching || aiMatches.length === 0)) &&
+            (filteredItems.length === 0 ? (
+              <div className="py-12 px-4 text-center">
+                <div className="w-12 h-12 rounded-2xl mx-auto mb-3 flex items-center justify-center bg-slate-500/10 text-slate-400">
+                  <Search className="w-6 h-6 stroke-[1.8]" />
+                </div>
+                <h4 className="text-sm font-bold">No matching commands found</h4>
+                <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
+                  No items match <strong className="text-blue-500">"{query}"</strong>. Try switching to the{' '}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveCategory('ai');
+                      handlePerformAiSearch(query);
+                    }}
+                    className="text-purple-400 underline font-semibold cursor-pointer"
+                  >
+                    ✨ AI Search tab
+                  </button>{' '}
+                  to query Gemini in natural language.
+                </p>
+              </div>
+            ) : (
+              filteredItems.map((item, index) => {
+                const isSelected = index === selectedIndex;
+                const IconComp = item.icon;
+
+                return (
+                  <div
+                    key={item.id}
+                    data-item-index={index}
+                    onClick={() => item.perform()}
+                    onMouseEnter={() => setSelectedIndex(index)}
+                    className={`group flex items-center justify-between gap-3 px-3 py-2.5 rounded-xl cursor-pointer transition-all border ${
+                      isSelected
+                        ? isDark
+                          ? item.category === 'ai'
+                            ? 'bg-gradient-to-r from-purple-600/30 via-slate-800 to-indigo-500/20 border-purple-500/50 text-white shadow-sm'
+                            : 'bg-gradient-to-r from-blue-600/30 via-slate-800 to-cyan-500/15 border-blue-500/50 text-white shadow-sm'
+                          : item.category === 'ai'
+                          ? 'bg-gradient-to-r from-purple-50 via-slate-50 to-indigo-50/50 border-purple-300 text-slate-900 shadow-xs'
+                          : 'bg-gradient-to-r from-blue-50 via-slate-50 to-blue-50/50 border-blue-300 text-slate-900 shadow-xs'
+                        : isDark
+                        ? 'border-transparent hover:bg-slate-800/60 text-slate-200'
+                        : 'border-transparent hover:bg-slate-100/80 text-slate-700'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div
+                        className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 border border-slate-700/20 transition-transform ${
+                          item.iconBg
+                        } ${item.iconColor} ${isSelected ? 'scale-110 shadow-xs' : ''}`}
+                      >
+                        <IconComp className="w-4 h-4 stroke-[2.2]" />
+                      </div>
+
+                      <div className="flex flex-col min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs sm:text-sm font-semibold truncate leading-tight">
+                            {item.title}
+                          </span>
+                          <span
+                            className={`text-[9.5px] font-mono uppercase font-bold px-1.5 py-0.2 rounded-md border shrink-0 ${item.badgeColor}`}
+                          >
+                            {item.badge}
+                          </span>
+                        </div>
+                        <span className="text-[11px] text-slate-400 dark:text-slate-400 truncate mt-0.5 leading-snug">
+                          {item.subtitle}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 shrink-0">
+                      {item.shortcut && (
+                        <kbd
+                          className={`hidden sm:inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-mono font-bold tracking-tight border ${
+                            isDark
+                              ? 'bg-slate-800 text-slate-300 border-slate-700'
+                              : 'bg-slate-100 text-slate-600 border-slate-200'
+                          }`}
+                        >
+                          {item.shortcut}
+                        </kbd>
+                      )}
+
+                      <div
+                        className={`w-6 h-6 rounded-lg flex items-center justify-center transition-all ${
+                          isSelected
+                            ? item.category === 'ai'
+                              ? 'bg-purple-600 text-white'
+                              : 'bg-blue-600 text-white'
+                            : 'opacity-0 group-hover:opacity-100 text-slate-400'
+                        }`}
+                      >
+                        <CornerDownLeft className="w-3.5 h-3.5" />
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+            ))}
         </div>
 
         {/* Bottom Keyboard Guide / Status Bar */}

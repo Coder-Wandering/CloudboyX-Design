@@ -176,6 +176,47 @@
         }
       },
       "required": ["clientId", "clientName", "planName", "billingCycle", "amount", "status", "nextBillingDate"]
+    },
+    "TemplatePreset": {
+      "title": "TemplatePreset",
+      "description": "User-saved reusable block styling and layout template presets.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique preset identifier"
+        },
+        "userId": {
+          "type": "string",
+          "description": "Owner user ID"
+        },
+        "name": {
+          "type": "string",
+          "description": "Display name of the preset"
+        },
+        "description": {
+          "type": "string",
+          "description": "Detailed description of preset styling and layout"
+        },
+        "category": {
+          "type": "string",
+          "description": "Preset category"
+        },
+        "tags": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Search tags and keywords"
+        },
+        "block": {
+          "type": "object",
+          "description": "Complete block definition (type, category, name, settings, content, visualNode)"
+        },
+        "createdAt": {
+          "type": "number",
+          "description": "Creation timestamp in milliseconds"
+        }
+      },
+      "required": ["name", "block", "createdAt"]
     }
   },
   "firestore": {
@@ -198,6 +239,10 @@
     "/recurring_configs/{configId}": {
       "schema": "RecurringInvoiceConfig",
       "description": "Recurring billing schedule configurations and automated cycle rules"
+    },
+    "/template_presets/{presetId}": {
+      "schema": "TemplatePreset",
+      "description": "Saved reusable block styling and layout presets"
     }
   }
 }

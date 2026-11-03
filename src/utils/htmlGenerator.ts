@@ -144,98 +144,131 @@ export function generateCompleteHtml(
   if (isEditor) {
     const parts: string[] = [];
     const renderDividerDropdown = (insertIndex: number, slotNumber: number) => `
-        <div class="studio-divider-dropdown studio-quick-add-popover" role="menu" aria-label="Quick Add Section Menu">
+        <div class="studio-divider-dropdown studio-quick-add-popover" role="menu" aria-label="Quick Insert Template Menu">
           <div class="studio-dropdown-header">
             <span class="studio-dropdown-header-title">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" style="width: 13px; height: 13px; display: inline-block; vertical-align: -2px; margin-right: 4px; color: #2563eb;"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-              QUICK ADD SECTION · SLOT #${slotNumber}
+              QUICK INSERT TEMPLATE · SLOT #${slotNumber}
             </span>
             <button type="button" class="studio-popover-close-btn" data-close-popover="true" title="Close Popover">×</button>
           </div>
 
+          <div class="studio-dropdown-subtitle">
+            <span class="studio-subtitle-badge">★ SUGGESTIONS</span>
+            <span>Click any template block for immediate insertion at this position:</span>
+          </div>
+
           <div class="studio-quick-add-search-container">
-            <input type="text" class="studio-quick-add-search-input" placeholder="Search blocks (hero, features, carousel, pricing...)" data-insert-index="${insertIndex}" />
+            <input type="text" class="studio-quick-add-search-input" placeholder="Search template blocks (hero, features, carousel, pricing...)" data-insert-index="${insertIndex}" />
           </div>
 
           <div class="studio-quick-add-categories">
-            <button type="button" class="studio-quick-cat-btn active" data-cat="all">All</button>
+            <button type="button" class="studio-quick-cat-btn active" data-cat="all">★ All Suggestions</button>
             <button type="button" class="studio-quick-cat-btn" data-cat="headers">Hero</button>
             <button type="button" class="studio-quick-cat-btn" data-cat="features">Features</button>
-            <button type="button" class="studio-quick-cat-btn" data-cat="gallery">Media</button>
             <button type="button" class="studio-quick-cat-btn" data-cat="pricing">Pricing</button>
+            <button type="button" class="studio-quick-cat-btn" data-cat="testimonials">Reviews</button>
             <button type="button" class="studio-quick-cat-btn" data-cat="forms">Forms</button>
+            <button type="button" class="studio-quick-cat-btn" data-cat="gallery">Media</button>
             <button type="button" class="studio-quick-cat-btn" data-cat="content">Content</button>
           </div>
 
           <div class="studio-quick-add-grid">
-            <button type="button" class="studio-quick-card" data-quick-add-type="hero-split" data-cat="headers" data-insert-index="${insertIndex}" title="Insert Hero Split">
+            <button type="button" class="studio-quick-card" data-quick-add-type="hero-split" data-cat="headers" data-insert-index="${insertIndex}" title="Insert Hero Split Template">
               <span class="studio-card-icon">⚡</span>
               <div class="studio-card-info">
-                <div class="studio-card-title">Hero Split</div>
+                <div class="studio-card-header-row">
+                  <span class="studio-card-title">Hero Split</span>
+                  <span class="studio-card-badge popular">Popular</span>
+                </div>
                 <div class="studio-card-desc">Heading, media & CTA</div>
               </div>
             </button>
 
-            <button type="button" class="studio-quick-card" data-quick-add-type="hero-centered" data-cat="headers" data-insert-index="${insertIndex}" title="Insert Hero Centered">
+            <button type="button" class="studio-quick-card" data-quick-add-type="hero-centered" data-cat="headers" data-insert-index="${insertIndex}" title="Insert Hero Centered Template">
               <span class="studio-card-icon">🎯</span>
               <div class="studio-card-info">
-                <div class="studio-card-title">Hero Centered</div>
-                <div class="studio-card-desc">Bold impact headline</div>
+                <div class="studio-card-header-row">
+                  <span class="studio-card-title">Hero Centered</span>
+                  <span class="studio-card-badge">Impact</span>
+                </div>
+                <div class="studio-card-desc">Bold headline & CTAs</div>
               </div>
             </button>
 
-            <button type="button" class="studio-quick-card" data-quick-add-type="features-3col" data-cat="features" data-insert-index="${insertIndex}" title="Insert 3-Col Features">
+            <button type="button" class="studio-quick-card" data-quick-add-type="features-3col" data-cat="features" data-insert-index="${insertIndex}" title="Insert 3-Col Features Template">
               <span class="studio-card-icon">✦</span>
               <div class="studio-card-info">
-                <div class="studio-card-title">Features 3-Col</div>
+                <div class="studio-card-header-row">
+                  <span class="studio-card-title">Features 3-Col</span>
+                  <span class="studio-card-badge essential">Essential</span>
+                </div>
                 <div class="studio-card-desc">Grid of 3 cards</div>
               </div>
             </button>
 
-            <button type="button" class="studio-quick-card" data-quick-add-type="media-carousel" data-cat="gallery" data-insert-index="${insertIndex}" title="Insert Media Carousel">
-              <span class="studio-card-icon">🎬</span>
-              <div class="studio-card-info">
-                <div class="studio-card-title">Media Carousel</div>
-                <div class="studio-card-desc">Video & image slider</div>
-              </div>
-            </button>
-
-            <button type="button" class="studio-quick-card" data-quick-add-type="gallery-grid" data-cat="gallery" data-insert-index="${insertIndex}" title="Insert Gallery Grid">
-              <span class="studio-card-icon">🖼</span>
-              <div class="studio-card-info">
-                <div class="studio-card-title">Gallery Grid</div>
-                <div class="studio-card-desc">Showcase cards</div>
-              </div>
-            </button>
-
-            <button type="button" class="studio-quick-card" data-quick-add-type="pricing-tiers" data-cat="pricing" data-insert-index="${insertIndex}" title="Insert Pricing Tiers">
+            <button type="button" class="studio-quick-card" data-quick-add-type="pricing-tiers" data-cat="pricing" data-insert-index="${insertIndex}" title="Insert Pricing Tiers Template">
               <span class="studio-card-icon">💎</span>
               <div class="studio-card-info">
-                <div class="studio-card-title">Pricing Tiers</div>
+                <div class="studio-card-header-row">
+                  <span class="studio-card-title">Pricing Tiers</span>
+                  <span class="studio-card-badge">Converting</span>
+                </div>
                 <div class="studio-card-desc">3-Tier comparison</div>
               </div>
             </button>
 
-            <button type="button" class="studio-quick-card" data-quick-add-type="contact-split" data-cat="forms" data-insert-index="${insertIndex}" title="Insert Contact Form">
+            <button type="button" class="studio-quick-card" data-quick-add-type="testimonials-cards" data-cat="testimonials" data-insert-index="${insertIndex}" title="Insert Testimonials Template">
+              <span class="studio-card-icon">💬</span>
+              <div class="studio-card-info">
+                <div class="studio-card-header-row">
+                  <span class="studio-card-title">Testimonials</span>
+                  <span class="studio-card-badge">Social Proof</span>
+                </div>
+                <div class="studio-card-desc">Customer reviews</div>
+              </div>
+            </button>
+
+            <button type="button" class="studio-quick-card" data-quick-add-type="contact-split" data-cat="forms" data-insert-index="${insertIndex}" title="Insert Contact Form Template">
               <span class="studio-card-icon">✉</span>
               <div class="studio-card-info">
-                <div class="studio-card-title">Contact & Form</div>
+                <div class="studio-card-header-row">
+                  <span class="studio-card-title">Contact Form</span>
+                  <span class="studio-card-badge">Leads</span>
+                </div>
                 <div class="studio-card-desc">Inputs & send button</div>
               </div>
             </button>
 
-            <button type="button" class="studio-quick-card" data-quick-add-type="testimonials-cards" data-cat="testimonials" data-insert-index="${insertIndex}" title="Insert Testimonials">
-              <span class="studio-card-icon">💬</span>
+            <button type="button" class="studio-quick-card" data-quick-add-type="media-carousel" data-cat="gallery" data-insert-index="${insertIndex}" title="Insert Media Carousel Template">
+              <span class="studio-card-icon">🎬</span>
               <div class="studio-card-info">
-                <div class="studio-card-title">Testimonials</div>
-                <div class="studio-card-desc">Customer reviews</div>
+                <div class="studio-card-header-row">
+                  <span class="studio-card-title">Media Carousel</span>
+                  <span class="studio-card-badge">Showcase</span>
+                </div>
+                <div class="studio-card-desc">Video & image slider</div>
+              </div>
+            </button>
+
+            <button type="button" class="studio-quick-card" data-quick-add-type="gallery-grid" data-cat="gallery" data-insert-index="${insertIndex}" title="Insert Gallery Grid Template">
+              <span class="studio-card-icon">🖼</span>
+              <div class="studio-card-info">
+                <div class="studio-card-header-row">
+                  <span class="studio-card-title">Gallery Grid</span>
+                  <span class="studio-card-badge">Portfolio</span>
+                </div>
+                <div class="studio-card-desc">Showcase cards</div>
               </div>
             </button>
 
             <button type="button" class="studio-quick-card" data-quick-add-type="blank-container" data-cat="content" data-insert-index="${insertIndex}" title="Insert Blank Container">
               <span class="studio-card-icon">📦</span>
               <div class="studio-card-info">
-                <div class="studio-card-title">Blank Container</div>
+                <div class="studio-card-header-row">
+                  <span class="studio-card-title">Blank Row</span>
+                  <span class="studio-card-badge">Clean</span>
+                </div>
                 <div class="studio-card-desc">Empty row container</div>
               </div>
             </button>
@@ -259,14 +292,14 @@ export function generateCompleteHtml(
       parts.push(`
       <div class="studio-block-divider-inserter studio-block-divider-top group relative z-[1042] flex items-center justify-center cursor-pointer select-none" data-insert-index="0" data-slot-number="1" contenteditable="false">
         <div class="studio-block-divider-line line-left flex-1 h-[2px]"></div>
-        <button type="button" class="studio-block-divider-btn inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold shadow-xs cursor-pointer whitespace-nowrap border" data-insert-index="0" title="Quick Add Section at Top (Slot #1)" aria-haspopup="true">
+        <button type="button" class="studio-block-divider-btn inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold shadow-xs cursor-pointer whitespace-nowrap border" data-insert-index="0" title="Quick Insert Template at Top (Slot #1)" aria-haspopup="true">
           <span class="divider-icon-capsule">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
               <line x1="12" y1="5" x2="12" y2="19"></line>
               <line x1="5" y1="12" x2="19" y2="12"></line>
             </svg>
           </span>
-          <span class="divider-text-label">+ Quick Add</span>
+          <span class="divider-text-label">+ Quick Insert</span>
           <span class="divider-drag-drop-label">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" style="width: 12px; height: 12px; display: inline-block; vertical-align: -1px; margin-right: 4px;">
               <path d="M12 5v14M19 12l-7 7-7-7"/>
@@ -285,14 +318,14 @@ export function generateCompleteHtml(
       parts.push(`
       <div class="studio-block-divider-inserter group relative z-[1042] flex items-center justify-center cursor-pointer select-none" data-insert-index="${index + 1}" data-slot-number="${index + 2}" contenteditable="false">
         <div class="studio-block-divider-line line-left flex-1 h-[2px]"></div>
-        <button type="button" class="studio-block-divider-btn inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold shadow-xs cursor-pointer whitespace-nowrap border" data-insert-index="${index + 1}" title="Quick Add Section (Slot #${index + 2})" aria-haspopup="true">
+        <button type="button" class="studio-block-divider-btn inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold shadow-xs cursor-pointer whitespace-nowrap border" data-insert-index="${index + 1}" title="Quick Insert Template (Slot #${index + 2})" aria-haspopup="true">
           <span class="divider-icon-capsule">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
               <line x1="12" y1="5" x2="12" y2="19"></line>
               <line x1="5" y1="12" x2="19" y2="12"></line>
             </svg>
           </span>
-          <span class="divider-text-label">+ Quick Add</span>
+          <span class="divider-text-label">+ Quick Insert</span>
           <span class="divider-drag-drop-label">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" style="width: 12px; height: 12px; display: inline-block; vertical-align: -1px; margin-right: 4px;">
               <path d="M12 5v14M19 12l-7 7-7-7"/>
@@ -742,7 +775,7 @@ export function generateCompleteHtml(
       box-shadow: 0 6px 20px rgba(37, 99, 235, 0.45), 0 2px 8px rgba(0, 0, 0, 0.15);
     }
     .studio-block-divider-inserter:hover .studio-block-divider-btn .divider-text-label {
-      max-width: 90px;
+      max-width: 125px;
       opacity: 1;
       margin-left: 2px;
     }
@@ -924,7 +957,7 @@ export function generateCompleteHtml(
     }
     .studio-block-divider-inserter.has-open-dropdown .studio-block-divider-btn .divider-text-label,
     .studio-block-divider-inserter:has(.is-open) .studio-block-divider-btn .divider-text-label {
-      max-width: 90px !important;
+      max-width: 125px !important;
       opacity: 1 !important;
       margin-left: 2px !important;
     }
@@ -978,6 +1011,33 @@ export function generateCompleteHtml(
     [data-bs-theme="dark"] .studio-popover-close-btn:hover {
       background: rgba(51, 65, 85, 0.6);
       color: #f8fafc;
+    }
+    .studio-dropdown-subtitle {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 10px;
+      color: #64748b;
+      margin-top: -2px;
+      margin-bottom: 2px;
+      line-height: 1.2;
+    }
+    [data-bs-theme="dark"] .studio-dropdown-subtitle {
+      color: #94a3b8;
+    }
+    .studio-subtitle-badge {
+      font-size: 8.5px;
+      font-weight: 800;
+      letter-spacing: 0.05em;
+      padding: 1px 5px;
+      border-radius: 4px;
+      background: rgba(37, 99, 235, 0.12);
+      color: #2563eb;
+      flex-shrink: 0;
+    }
+    [data-bs-theme="dark"] .studio-subtitle-badge {
+      background: rgba(0, 229, 209, 0.15);
+      color: #00E5D1;
     }
     .studio-quick-add-search-input {
       width: 100%;
@@ -1097,8 +1157,42 @@ export function generateCompleteHtml(
       color: #1e293b;
       line-height: 1.2;
     }
-    [data-bs-theme="dark"] .studio-card-title {
-      color: #f1f5f9;
+    .studio-card-header-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 4px;
+    }
+    .studio-card-badge {
+      font-size: 8px;
+      font-weight: 700;
+      letter-spacing: 0.03em;
+      padding: 0.5px 4px;
+      border-radius: 4px;
+      background: rgba(100, 116, 139, 0.15);
+      color: #64748b;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .studio-card-badge.popular {
+      background: rgba(37, 99, 235, 0.15);
+      color: #2563eb;
+    }
+    .studio-card-badge.essential {
+      background: rgba(16, 185, 129, 0.15);
+      color: #059669;
+    }
+    [data-bs-theme="dark"] .studio-card-badge {
+      background: rgba(148, 163, 184, 0.15);
+      color: #94a3b8;
+    }
+    [data-bs-theme="dark"] .studio-card-badge.popular {
+      background: rgba(0, 229, 209, 0.2);
+      color: #00E5D1;
+    }
+    [data-bs-theme="dark"] .studio-card-badge.essential {
+      background: rgba(52, 211, 153, 0.2);
+      color: #34d399;
     }
     .studio-card-desc {
       font-size: 9px;

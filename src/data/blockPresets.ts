@@ -612,3 +612,63 @@ export function saveStoredPresets(presets: BlockPreset[]): void {
     console.error('Failed to save presets to localStorage', e);
   }
 }
+
+// Background Firestore synchronization for multi-project persistence
+export async function syncPresetToFirestore(preset: BlockPreset): Promise<void> {
+  try {
+    const { db } = await import('../firebase');
+    const { doc, setDoc } = await import('firebase/firestore');
+    await setDoc(doc(db, 'template_presets', preset.id), {
+      id: preset.id,
+      name: preset.name,
+      description: preset.description || '',
+      category: preset.category,
+      tags: preset.tags || [],
+      block: preset.block,
+      isBuiltIn: false,
+      createdAt: preset.createdAt || Date.now(),
+      updatedAt: Date.now(),
+    });
+  } catch (err) {
+    // Graceful offline fallback - localStorage already holds the source of truth
+    console.warn('Firestore preset sync skipped/offline:', err);
+  }
+}
+
+export async function deletePresetFromFirestore(presetId: string): Promise<void> {
+  try {
+    const { db } = await import('../firebase');
+    const { doc, deleteDoc } = await import('firebase/firestore');
+    await deleteDoc(doc(db, 'template_presets', presetId));
+  } catch (err) {
+    console.warn('Firestore preset delete skipped/offline:', err);
+  }
+}
+
+export async function fetchPresetsFromFirestore(): Promise<BlockPreset[]> {
+  try {
+    const { db } = await import('../firebase');
+    const { collection, getDocs, limit, query } = await import('firebase/firestore');
+    const snap = await getDocs(query(collection(db, 'template_presets'), limit(50)));
+    const results: BlockPreset[] = [];
+    snap.forEach((docSnap) => {
+      const data = docSnap.data();
+      if (data && data.name && data.block) {
+        results.push({
+          id: data.id || docSnap.id,
+          name: data.name,
+          description: data.description || '',
+          category: data.category || 'content',
+          tags: data.tags || [],
+          isBuiltIn: false,
+          createdAt: data.createdAt || Date.now(),
+          block: data.block,
+        });
+      }
+    });
+    return results;
+  } catch (err) {
+    console.warn('Firestore preset fetch skipped/offline:', err);
+    return [];
+  }
+}

@@ -252,14 +252,8 @@ export default function App() {
     }
   }, []);
 
-  // Canvas Zoom / Fit to Screen State
-  const [isFitToScreen, setIsFitToScreen] = useState<boolean>(() => {
-    try {
-      return localStorage.getItem('builder_fit_to_screen') === 'true';
-    } catch {
-      return false;
-    }
-  });
+  // Canvas Zoom / Fit to Screen State (defaults to 100% full-screen scale)
+  const [isFitToScreen, setIsFitToScreen] = useState<boolean>(false);
   const [zoomScale, setZoomScale] = useState<number>(1);
 
   // Undo / Redo history
@@ -1349,9 +1343,15 @@ export default function App() {
   };
 
   const handleAddBlockAtIndex = useCallback(
-    (type: string, targetIndex: number) => {
+    (type: string, targetIndex: number, contentPatch?: Record<string, any>) => {
       pushHistory(blocks);
       const newBlock = createNewBlock(type);
+      if (contentPatch) {
+        newBlock.content = { ...newBlock.content, ...contentPatch };
+        if (contentPatch.title) {
+          newBlock.name = contentPatch.title;
+        }
+      }
       const updated = [...blocks];
       const clamped = Math.max(0, Math.min(targetIndex, updated.length));
       updated.splice(clamped, 0, newBlock);
