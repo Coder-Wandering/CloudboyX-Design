@@ -109,35 +109,43 @@ const BREAKPOINT_FRAME_CONFIG: Record<
     widthLabel: string;
     targetWidth: number;
     targetHeight: number;
+    aspectRatio: number;
+    aspectRatioLabel: string;
     containerClass: string;
     deviceType: string;
     hasBezel: boolean;
   }
 > = {
   xs: {
-    widthLabel: '390px',
+    widthLabel: '390px (Mobile)',
     targetWidth: 390,
     targetHeight: 844,
+    aspectRatio: 390 / 844,
+    aspectRatioLabel: '9:19.5',
     containerClass:
-      'w-[390px] h-[844px] my-5 rounded-[36px] shadow-2xl border-[8px] border-slate-800 bg-white ring-1 ring-slate-900/10 overflow-hidden',
+      'rounded-[36px] shadow-2xl border-[8px] border-slate-800 bg-white ring-1 ring-slate-900/10 overflow-hidden',
     deviceType: 'Mobile Phone (Portrait)',
     hasBezel: true,
   },
   sm: {
-    widthLabel: '576px',
+    widthLabel: '576px (Phablet)',
     targetWidth: 576,
     targetHeight: 840,
+    aspectRatio: 576 / 840,
+    aspectRatioLabel: '16:23',
     containerClass:
-      'w-[576px] h-[840px] my-5 rounded-[24px] shadow-2xl border-[6px] border-slate-800 bg-white ring-1 ring-slate-900/10 overflow-hidden',
+      'rounded-[24px] shadow-2xl border-[6px] border-slate-800 bg-white ring-1 ring-slate-900/10 overflow-hidden',
     deviceType: 'Large Mobile / Landscape',
     hasBezel: true,
   },
   md: {
-    widthLabel: '768px',
+    widthLabel: '768px (Tablet)',
     targetWidth: 768,
     targetHeight: 1024,
+    aspectRatio: 768 / 1024,
+    aspectRatioLabel: '3:4',
     containerClass:
-      'w-[768px] h-[1024px] my-5 rounded-[20px] shadow-2xl border-[6px] border-slate-800 bg-white ring-1 ring-slate-900/10 overflow-hidden',
+      'rounded-[20px] shadow-2xl border-[6px] border-slate-800 bg-white ring-1 ring-slate-900/10 overflow-hidden',
     deviceType: 'Tablet / iPad',
     hasBezel: true,
   },
@@ -145,23 +153,29 @@ const BREAKPOINT_FRAME_CONFIG: Record<
     widthLabel: 'Desktop (992px+)',
     targetWidth: 1200,
     targetHeight: 800,
-    containerClass: 'w-full flex-1 h-full min-h-0 bg-white shadow-xs',
+    aspectRatio: 1200 / 800,
+    aspectRatioLabel: '3:2',
+    containerClass: 'bg-white shadow-xs rounded-lg overflow-hidden',
     deviceType: 'Standard Desktop',
     hasBezel: false,
   },
   xl: {
     widthLabel: 'Desktop (1200px+)',
-    targetWidth: 1400,
-    targetHeight: 800,
-    containerClass: 'w-full flex-1 h-full min-h-0 bg-white shadow-xs',
+    targetWidth: 1440,
+    targetHeight: 900,
+    aspectRatio: 1440 / 900,
+    aspectRatioLabel: '16:10',
+    containerClass: 'bg-white shadow-xs rounded-lg overflow-hidden',
     deviceType: 'Large Desktop',
     hasBezel: false,
   },
   xxl: {
     widthLabel: '100% Fluid Desktop',
-    targetWidth: 1600,
-    targetHeight: 900,
-    containerClass: 'w-full flex-1 h-full min-h-0 bg-white shadow-xs',
+    targetWidth: 1920,
+    targetHeight: 1080,
+    aspectRatio: 1920 / 1080,
+    aspectRatioLabel: '16:9',
+    containerClass: 'bg-white shadow-xs rounded-lg overflow-hidden',
     deviceType: 'Ultra-wide / Full Canvas',
     hasBezel: false,
   },
@@ -970,17 +984,22 @@ export const CanvasFrame: React.FC<CanvasFrameProps> = ({
   const currentFrameConfig = BREAKPOINT_FRAME_CONFIG[currentBp];
   const CurrentDeviceIcon = BREAKPOINT_DEVICE_ICONS[currentBp];
 
-  // Measure container dimensions for Fit-to-Screen dynamic zoom scaling
+  // Measure container dimensions for dynamic aspect-ratio responsive scaling
   useEffect(() => {
     const el = outerContainerRef.current;
     if (!el) return;
 
     const measure = () => {
       const rect = el.getBoundingClientRect();
+      const rulerEl = document.getElementById('bootstrap-breakpoint-canvas-ruler');
+      const hudEl = document.getElementById('canvas-bottom-breakpoint-hud-wrapper');
+      const rulerH = rulerEl ? rulerEl.getBoundingClientRect().height : 36;
+      const hudH = hudEl ? hudEl.getBoundingClientRect().height : 46;
+
       setContainerDimensions({
-        // Account for comfortable margins on left/right and top ruler / bottom HUD
-        width: Math.max(300, rect.width - 48),
-        height: Math.max(300, rect.height - 110),
+        // Account for comfortable horizontal and vertical gutters preventing any clipping
+        width: Math.max(300, rect.width - 32),
+        height: Math.max(240, rect.height - rulerH - hudH - 24),
       });
     };
 
@@ -1008,24 +1027,106 @@ export const CanvasFrame: React.FC<CanvasFrameProps> = ({
     currentBp === 'xl' ||
     currentBp === 'xxl';
 
-  // Compute scale factor for Fit to Screen (only shrinks simulated mobile/tablet frames if they overflow)
-  const computedScale = useMemo(() => {
-    if (!isFitToScreen) return 1;
-    // For Desktop views, canvas is naturally full-width 100% fluid, no downscaling
-    if (isDesktopMode) return 1;
+  // Responsive Aspect-Ratio Scaling Engine:
+  // Calculates the exact aspect ratio of the viewport instead of forcing a fixed size,
+  // ensuring the content scales proportionally in both dimensions without clipping.
+  const {
+    computedScale,
+    wrapperStyle,
+    frameStyle,
+    aspectRatioLabel,
+    isScaled,
+  } = useMemo(() => {
+    const targetW = currentFrameConfig.targetWidth || 1200;
+    const targetH = currentFrameConfig.targetHeight || 800;
+    const targetRatio = currentFrameConfig.aspectRatio || targetW / targetH;
 
-    // For mobile/tablet simulated device frames (xs, sm, md):
-    const targetW = currentFrameConfig.targetWidth || 768;
-    const targetH = currentFrameConfig.targetHeight || 844;
+    const availW = Math.max(280, containerDimensions.width);
+    const availH = Math.max(240, containerDimensions.height);
+    const containerRatio = availW / availH;
 
-    // Only scale down if the device frame actually exceeds available container space
-    const scaleW = containerDimensions.width < targetW ? containerDimensions.width / targetW : 1;
-    const scaleH = containerDimensions.height < targetH ? containerDimensions.height / targetH : 1;
+    // Desktop view when Fit to Screen is disabled: Natural fluid 100% canvas
+    if (isDesktopMode && !isFitToScreen) {
+      return {
+        computedScale: 1,
+        wrapperStyle: {
+          width: '100%',
+          height: '100%',
+          flex: 1,
+          minHeight: 0,
+        } as React.CSSProperties,
+        frameStyle: {
+          width: '100%',
+          height: '100%',
+          flex: 1,
+          minHeight: 0,
+        } as React.CSSProperties,
+        aspectRatioLabel: 'Fluid',
+        isScaled: false,
+      };
+    }
 
-    const rawScale = Math.min(scaleW, scaleH);
-    // Never scale down below 0.5, and never upscale beyond 1.0
-    return Math.min(1, Math.max(0.5, Math.round(rawScale * 100) / 100));
-  }, [isFitToScreen, isDesktopMode, currentFrameConfig, containerDimensions]);
+    // When Fit to Screen is active OR simulating mobile/tablet frames:
+    let scale: number;
+
+    if (isFitToScreen) {
+      // Calculate exact proportional scale to fit within both availW and availH without clipping
+      if (containerRatio > targetRatio) {
+        // Container is wider than the target frame -> height is the limiting factor
+        scale = availH / targetH;
+      } else {
+        // Container is taller/narrower than the target frame -> width is the limiting factor
+        scale = availW / targetW;
+      }
+      // Ergonomic bounds: allow downscaling or subtle upscaling to fit viewport
+      scale = Math.min(1.5, Math.max(0.25, Math.round(scale * 100) / 100));
+    } else {
+      // Non-fit mode for simulated mobile/tablet device frames:
+      // If the device frame exceeds available container width, scale proportionally to prevent horizontal clipping
+      if (availW < targetW) {
+        scale = Math.max(0.3, Math.round((availW / targetW) * 100) / 100);
+      } else {
+        scale = 1;
+      }
+    }
+
+    const isCurrentlyScaled = Math.abs(scale - 1) > 0.01;
+    const scaledWidth = Math.round(targetW * scale);
+    const scaledHeight = Math.round(targetH * scale);
+
+    return {
+      computedScale: scale,
+      wrapperStyle: isCurrentlyScaled
+        ? ({
+            width: `${scaledWidth}px`,
+            height: `${scaledHeight}px`,
+            margin: 'auto',
+            flexShrink: 0,
+            aspectRatio: `${targetW} / ${targetH}`,
+          } as React.CSSProperties)
+        : ({
+            width: `${targetW}px`,
+            height: `${targetH}px`,
+            margin: 'auto',
+            flexShrink: 0,
+            aspectRatio: `${targetW} / ${targetH}`,
+          } as React.CSSProperties),
+      frameStyle: isCurrentlyScaled
+        ? ({
+            width: `${targetW}px`,
+            height: `${targetH}px`,
+            transform: `scale(${scale})`,
+            transformOrigin: 'top left',
+            transition: 'transform 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
+          } as React.CSSProperties)
+        : ({
+            width: `${targetW}px`,
+            height: `${targetH}px`,
+          } as React.CSSProperties),
+      aspectRatioLabel: currentFrameConfig.aspectRatioLabel,
+      isScaled: isCurrentlyScaled,
+    };
+  }, [currentFrameConfig, containerDimensions, isDesktopMode, isFitToScreen]);
 
   // Synchronize computed zoom scale to parent
   useEffect(() => {
@@ -1499,8 +1600,8 @@ export const CanvasFrame: React.FC<CanvasFrameProps> = ({
                 }`}
                 title={
                   isFitToScreen
-                    ? `Fit to Screen: Canvas scaled to ${Math.round(computedScale * 100)}% to fit browser viewport (Click to reset to 100% zoom)`
-                    : 'Fit to Screen: Scale canvas to fit browser viewport without horizontal or vertical clipping (Click to activate)'
+                    ? `Fit to Screen: Scaled to ${Math.round(computedScale * 100)}% maintaining ${aspectRatioLabel} aspect ratio (${currentFrameConfig.targetWidth}×${currentFrameConfig.targetHeight}) without clipping (Click to reset to 100% zoom)`
+                    : 'Fit to Screen: Scale canvas to fit browser viewport preserving aspect ratio without clipping (Click to activate)'
                 }
                 aria-label="Toggle Fit to Screen canvas zoom mode"
               >
@@ -1519,7 +1620,7 @@ export const CanvasFrame: React.FC<CanvasFrameProps> = ({
                       : 'bg-slate-200 text-slate-600'
                   }`}
                 >
-                  {isFitToScreen ? (isDesktopMode ? '100% Fit' : `${Math.round(computedScale * 100)}%`) : '100%'}
+                  {isFitToScreen ? `${Math.round(computedScale * 100)}%` : '100%'}
                 </span>
               </button>
             )}
@@ -1787,45 +1888,29 @@ export const CanvasFrame: React.FC<CanvasFrameProps> = ({
         </div>
       )}
 
-      {/* 2. SIMULATED VIEWPORT FRAME WITH FIT-TO-SCREEN ZOOM SCALING */}
+      {/* 2. SIMULATED VIEWPORT FRAME WITH EXACT ASPECT-RATIO RESPONSIVE SCALING */}
       <div
         id="canvas-fit-scaling-wrapper"
-        className={`w-full flex-1 min-h-0 flex flex-col items-center justify-start transition-all duration-300 ${
-          isDesktopMode ? 'h-full' : 'overflow-auto py-3'
+        className={`w-full flex-1 min-h-0 flex flex-col items-center justify-center transition-all duration-300 ${
+          isDesktopMode && !isFitToScreen ? 'h-full overflow-hidden' : 'overflow-auto p-3 sm:p-5'
         }`}
-        style={
-          !isDesktopMode && isFitToScreen && computedScale < 1
-            ? {
-                width: `${Math.round((currentFrameConfig.targetWidth || 768) * computedScale)}px`,
-                height: `${Math.round((currentFrameConfig.targetHeight || 844) * computedScale)}px`,
-                margin: '16px auto',
-                flexShrink: 0,
-              }
-            : undefined
-        }
       >
         <div
-          id="canvas-viewport-frame-container"
-          onMouseEnter={() => setIsHoveringCanvas(true)}
-          onMouseLeave={() => setIsHoveringCanvas(false)}
-          style={
-            !isDesktopMode && isFitToScreen && computedScale < 1
-              ? {
-                  width: `${currentFrameConfig.targetWidth || 768}px`,
-                  height: `${currentFrameConfig.targetHeight || 844}px`,
-                  transform: `scale(${computedScale})`,
-                  transformOrigin: 'top center',
-                  transition: 'transform 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
-                  margin: 0,
-                }
-              : isDesktopMode
-              ? { width: '100%', height: '100%', flex: 1, minHeight: 0 }
-              : undefined
-          }
-          className={`transition-all duration-300 relative flex flex-col ${
-            isDesktopMode ? 'w-full flex-1 h-full min-h-0 bg-white shadow-xs' : currentFrameConfig.containerClass
-          }`}
+          id="canvas-aspect-ratio-frame-wrapper"
+          style={wrapperStyle}
+          className="relative transition-all duration-300 flex items-center justify-center shrink-0"
         >
+          <div
+            id="canvas-viewport-frame-container"
+            onMouseEnter={() => setIsHoveringCanvas(true)}
+            onMouseLeave={() => setIsHoveringCanvas(false)}
+            style={frameStyle}
+            className={`transition-all duration-300 relative flex flex-col ${
+              isDesktopMode && !isFitToScreen
+                ? 'w-full flex-1 h-full min-h-0 bg-white shadow-xs'
+                : currentFrameConfig.containerClass
+            }`}
+          >
         {/* Mobile / Tablet camera pill simulation */}
         {currentFrameConfig.hasBezel && (
           <div className="w-full bg-slate-800 py-1 flex justify-center items-center shrink-0 z-20">
@@ -2007,8 +2092,9 @@ export const CanvasFrame: React.FC<CanvasFrameProps> = ({
           }`}
           sandbox="allow-scripts allow-same-origin allow-forms allow-modals"
         />
+          </div>
+        </div>
       </div>
-    </div>
 
       {/* 3. COMPACT BOTTOM RESPONSIVE CAPSULE */}
       <div
@@ -2209,8 +2295,8 @@ export const CanvasFrame: React.FC<CanvasFrameProps> = ({
               }`}
               title={
                 isFitToScreen
-                  ? `Fit to Screen: Scaled to ${Math.round(computedScale * 100)}% (Click to reset to 100% zoom)`
-                  : 'Fit Canvas to Screen (Click to activate)'
+                  ? `Fit to Screen: Scaled to ${Math.round(computedScale * 100)}% maintaining ${aspectRatioLabel} aspect ratio (${currentFrameConfig.targetWidth}×${currentFrameConfig.targetHeight}) without clipping (Click to reset to 100% zoom)`
+                  : `Fit Canvas to Screen: Scale proportionally preserving ${aspectRatioLabel} aspect ratio (Click to activate)`
               }
               aria-label="Toggle Fit to Screen in bottom HUD"
             >
@@ -2220,7 +2306,11 @@ export const CanvasFrame: React.FC<CanvasFrameProps> = ({
                 <Maximize2 className="w-2.5 h-2.5" />
               )}
               <span className="font-mono text-[9.5px]">
-                {isFitToScreen ? (isDesktopMode ? '100% Fit' : `${Math.round(computedScale * 100)}% Fit`) : '100%'}
+                {isFitToScreen
+                  ? `${Math.round(computedScale * 100)}% (${aspectRatioLabel})`
+                  : isDesktopMode
+                  ? '100% Fluid'
+                  : `100% (${aspectRatioLabel})`}
               </span>
             </button>
           )}
