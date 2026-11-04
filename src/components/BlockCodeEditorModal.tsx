@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   X,
   Check,
@@ -15,10 +15,17 @@ import {
   Layers,
   Sliders,
   Zap,
+  AlertCircle,
+  AlertTriangle,
+  CheckCircle2,
+  Info,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 import { BlockInstance, SiteTheme } from '../types';
 import { extractEditableBlockCode } from '../utils/htmlGenerator';
 import { BLOCK_DEFINITIONS } from '../data/blockDefinitions';
+import { lintCustomCss, formatCssCode, CssLintIssue } from '../utils/cssLinter';
 
 interface BlockCodeEditorModalProps {
   isOpen: boolean;
@@ -359,6 +366,62 @@ export const BlockCodeEditorModal: React.FC<BlockCodeEditorModalProps> = ({
   const [viewLayout, setViewLayout] = useState<'split-code' | 'code-and-preview'>('split-code');
   const [copiedPane, setCopiedPane] = useState<'html' | 'css' | null>(null);
   const [activeRemixId, setActiveRemixId] = useState<string | null>(null);
+  const [isDiagnosticsOpen, setIsDiagnosticsOpen] = useState(true);
+  const [diagnosticFilter, setDiagnosticFilter] = useState<'all' | 'error' | 'warning' | 'info'>('all');
+  const [activeHighlightedLine, setActiveHighlightedLine] = useState<number | null>(null);
+  const cssTextareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Real-time CSS lint issues & diagnostics (syntax errors, typos, legacy Bootstrap classes)
+  const lintIssues = useMemo(() => {
+    return lintCustomCss(cssCode, block?.id);
+  }, [cssCode, block?.id]);
+
+  const errorCount = useMemo(() => lintIssues.filter((i) => i.severity === 'error').length, [lintIssues]);
+  const warningCount = useMemo(() => lintIssues.filter((i) => i.severity === 'warning').length, [lintIssues]);
+  const infoCount = useMemo(() => lintIssues.filter((i) => i.severity === 'info').length, [lintIssues]);
+
+  const filteredIssues = useMemo(() => {
+    if (diagnosticFilter === 'all') return lintIssues;
+    return lintIssues.filter((i) => i.severity === diagnosticFilter);
+  }, [lintIssues, diagnosticFilter]);
+
+  const lineIssuesMap = useMemo(() => {
+    const map = new Map<number, CssLintIssue[]>();
+    for (const issue of lintIssues) {
+      const existing = map.get(issue.line) || [];
+      existing.push(issue);
+      map.set(issue.line, existing);
+    }
+    return map;
+  }, [lintIssues]);
+
+  const handleJumpToLine = (lineNumber: number) => {
+    setActiveHighlightedLine(lineNumber);
+    if (cssTextareaRef.current) {
+      const lines = cssCode.split('\n');
+      let charIndex = 0;
+      for (let i = 0; i < lineNumber - 1 && i < lines.length; i++) {
+        charIndex += lines[i].length + 1;
+      }
+      const lineLength = lines[lineNumber - 1]?.length || 0;
+      cssTextareaRef.current.focus();
+      cssTextareaRef.current.setSelectionRange(charIndex, charIndex + lineLength);
+      const lineHeight = 24;
+      cssTextareaRef.current.scrollTop = Math.max(0, (lineNumber - 3) * lineHeight);
+    }
+  };
+
+  const handleApplyQuickFix = (issue: CssLintIssue) => {
+    if (issue.suggestedFix) {
+      const updated = issue.suggestedFix.applyFix(cssCode);
+      setCssCode(updated);
+    }
+  };
+
+  const handleFormatCss = () => {
+    const formatted = formatCssCode(cssCode);
+    setCssCode(formatted);
+  };
 
   const isDark = themeMode === 'dark';
 
@@ -751,7 +814,7 @@ export const BlockCodeEditorModal: React.FC<BlockCodeEditorModalProps> = ({
             </div>
           </div>
 
-          {/* MIDDLE / RIGHT PANE: CSS EDITOR */}
+          {/* MIDDLE / RIGHT PANE: CSS EDITOR WITH REAL-TIME LINTING */}
           <div
             className={`flex flex-col min-h-0 bg-[#181c27] ${
               viewLayout === 'code-and-preview' ? 'lg:col-span-3' : 'lg:col-span-5'
@@ -759,18 +822,67 @@ export const BlockCodeEditorModal: React.FC<BlockCodeEditorModalProps> = ({
           >
             {/* Pane Header */}
             <div className="px-4 py-2 bg-[#131722] border-b border-slate-800/80 flex items-center justify-between gap-2 shrink-0">
-              <div className="flex items-center gap-2">
-                <FileCode className="w-4 h-4 text-cyan-400" />
+              <div className="flex items-center gap-2 flex-wrap min-w-0">
+                <FileCode className="w-4 h-4 text-cyan-400 shrink-0" />
                 <span className="text-xs font-bold tracking-wide text-slate-200">
                   CSS Editor
                 </span>
                 <span className="text-[10px] font-mono text-slate-400">
                   ({cssCode.split('\n').length} lines)
                 </span>
+
+                {/* Real-time CSS Lint Status Badge */}
+                <button
+                  type="button"
+                  id="btn-toggle-css-diagnostics"
+                  onClick={() => setIsDiagnosticsOpen((prev) => !prev)}
+                  className={`flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold border transition cursor-pointer shadow-xs ${
+                    errorCount > 0
+                      ? 'bg-rose-500/15 border-rose-500/40 text-rose-300 hover:bg-rose-500/25'
+                      : warningCount > 0
+                      ? 'bg-amber-500/15 border-amber-500/40 text-amber-300 hover:bg-amber-500/25'
+                      : infoCount > 0
+                      ? 'bg-sky-500/15 border-sky-500/40 text-sky-300 hover:bg-sky-500/25'
+                      : 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/25'
+                  }`}
+                  title={`${errorCount} error(s), ${warningCount} warning(s), ${infoCount} tip(s). Click to toggle live diagnostics drawer.`}
+                >
+                  {errorCount > 0 ? (
+                    <AlertCircle className="w-3 h-3 text-rose-400 shrink-0" />
+                  ) : warningCount > 0 ? (
+                    <AlertTriangle className="w-3 h-3 text-amber-400 shrink-0" />
+                  ) : (
+                    <CheckCircle2 className="w-3 h-3 text-emerald-400 shrink-0" />
+                  )}
+                  <span>
+                    {errorCount > 0
+                      ? `${errorCount} ${errorCount === 1 ? 'Error' : 'Errors'}`
+                      : warningCount > 0
+                      ? `${warningCount} ${warningCount === 1 ? 'Warning' : 'Warnings'}`
+                      : infoCount > 0
+                      ? `${infoCount} ${infoCount === 1 ? 'Tip' : 'Tips'}`
+                      : 'Clean CSS'}
+                  </span>
+                  {isDiagnosticsOpen ? (
+                    <ChevronDown className="w-3 h-3 opacity-60" />
+                  ) : (
+                    <ChevronUp className="w-3 h-3 opacity-60" />
+                  )}
+                </button>
               </div>
 
-              {/* Quick CSS Snippet Chips */}
-              <div className="flex items-center gap-1 overflow-x-auto no-scrollbar">
+              {/* Quick CSS Actions: Format, Snippets & Copy */}
+              <div className="flex items-center gap-1 overflow-x-auto no-scrollbar shrink-0">
+                <button
+                  type="button"
+                  id="btn-format-css"
+                  onClick={handleFormatCss}
+                  className="flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold bg-slate-800 hover:bg-slate-700 text-cyan-300 transition cursor-pointer border border-slate-700/60"
+                  title="Format CSS code with clean indentation and line breaks"
+                >
+                  <Wand2 className="w-3 h-3" />
+                  <span>Format</span>
+                </button>
                 <button
                   type="button"
                   onClick={() =>
@@ -793,7 +905,7 @@ export const BlockCodeEditorModal: React.FC<BlockCodeEditorModalProps> = ({
                   className="px-2 py-0.5 rounded text-[10px] font-mono bg-slate-800 hover:bg-slate-700 text-slate-300 transition cursor-pointer"
                   title="Insert gradient heading CSS rule"
                 >
-                  + Gradient Text
+                  + Gradient
                 </button>
                 <button
                   type="button"
@@ -803,34 +915,241 @@ export const BlockCodeEditorModal: React.FC<BlockCodeEditorModalProps> = ({
                   title="Copy only custom CSS to clipboard"
                 >
                   <Copy className="w-3 h-3 text-sky-400" />
-                  <span>{copiedPane === 'css' ? 'CSS Copied!' : 'Copy CSS'}</span>
+                  <span>{copiedPane === 'css' ? 'Copied!' : 'Copy'}</span>
                 </button>
               </div>
             </div>
 
-            {/* Code Textarea with Line Numbers */}
+            {/* Code Textarea with Line Numbers & Lint Gutter Markers */}
             <div className="flex-1 flex relative min-h-0 overflow-hidden font-mono text-[13px] leading-6">
               {/* Line Numbers Gutter */}
               <div
                 aria-hidden="true"
-                className="w-12 py-4 bg-[#131722] text-slate-600 text-right pr-3 select-none shrink-0 overflow-hidden border-r border-slate-800/60"
+                className="w-14 py-4 bg-[#131722] text-slate-600 text-right pr-2 select-none shrink-0 overflow-hidden border-r border-slate-800/60"
               >
-                {Array.from({ length: cssLineCount }).map((_, idx) => (
-                  <div key={idx}>{idx + 1}</div>
-                ))}
+                {Array.from({ length: cssLineCount }).map((_, idx) => {
+                  const lineNum = idx + 1;
+                  const lineIssues = lineIssuesMap.get(lineNum);
+                  const hasError = lineIssues?.some((i) => i.severity === 'error');
+                  const hasWarning = lineIssues?.some((i) => i.severity === 'warning');
+                  const hasInfo = lineIssues?.some((i) => i.severity === 'info');
+                  const isHighlighted = activeHighlightedLine === lineNum;
+
+                  return (
+                    <div
+                      key={idx}
+                      onClick={() => handleJumpToLine(lineNum)}
+                      className={`flex items-center justify-end gap-1.5 cursor-pointer px-1 rounded transition-colors ${
+                        isHighlighted
+                          ? 'bg-blue-600/30 text-cyan-300 font-bold'
+                          : hasError
+                          ? 'text-rose-400 bg-rose-500/10'
+                          : hasWarning
+                          ? 'text-amber-400 bg-amber-500/10'
+                          : hasInfo
+                          ? 'text-sky-400'
+                          : 'hover:text-slate-400'
+                      }`}
+                      title={
+                        lineIssues && lineIssues.length > 0
+                          ? lineIssues
+                              .map(
+                                (i) =>
+                                  `[${i.severity.toUpperCase()}] ${i.message}`
+                              )
+                              .join('\n')
+                          : `Line ${lineNum}`
+                      }
+                    >
+                      {hasError ? (
+                        <span className="w-2 h-2 rounded-full bg-rose-500 shrink-0 animate-pulse" />
+                      ) : hasWarning ? (
+                        <span className="w-2 h-2 rounded-full bg-amber-400 shrink-0" />
+                      ) : hasInfo ? (
+                        <span className="w-2 h-2 rounded-full bg-sky-400 shrink-0" />
+                      ) : null}
+                      <span>{lineNum}</span>
+                    </div>
+                  );
+                })}
               </div>
 
               {/* Editable CSS Textarea */}
               <textarea
+                ref={cssTextareaRef}
                 id="block-css-code-textarea"
                 value={cssCode}
-                onChange={(e) => setCssCode(e.target.value)}
+                onChange={(e) => {
+                  setCssCode(e.target.value);
+                  setActiveHighlightedLine(null);
+                }}
                 onKeyDown={(e) => handleTextareaTab(e, setCssCode)}
                 spellCheck={false}
                 placeholder="/* Write scoped CSS rules for this block... */"
                 className="flex-1 w-full h-full p-4 bg-[#181c27] text-sky-300 placeholder-slate-600 focus:outline-none resize-none overflow-auto font-mono text-[13px] leading-6 selection:bg-blue-600/40"
               />
             </div>
+
+            {/* REAL-TIME CSS DIAGNOSTICS & BOOTSTRAP LINT DRAWER */}
+            {isDiagnosticsOpen && (
+              <div
+                id="css-lint-diagnostics-drawer"
+                className="bg-[#0f131d] border-t border-slate-800 flex flex-col shrink-0 max-h-56 overflow-hidden transition-all duration-200"
+              >
+                {/* Diagnostics Header Bar */}
+                <div className="px-3.5 py-1.5 bg-[#0a0d14] border-b border-slate-800/90 flex items-center justify-between gap-2 shrink-0 text-xs">
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold tracking-tight text-slate-300 flex items-center gap-1.5">
+                      <FileCode className="w-3.5 h-3.5 text-cyan-400" />
+                      <span>CSS &amp; Bootstrap Linter</span>
+                    </span>
+                    <span className="text-[10px] font-mono px-1.5 py-0.2 rounded-full bg-slate-800 text-slate-400 font-bold">
+                      {lintIssues.length} {lintIssues.length === 1 ? 'issue' : 'issues'}
+                    </span>
+                  </div>
+
+                  {/* Filter Tabs */}
+                  <div className="flex items-center gap-1 text-[11px]">
+                    <button
+                      type="button"
+                      onClick={() => setDiagnosticFilter('all')}
+                      className={`px-2 py-0.5 rounded-md font-semibold transition cursor-pointer ${
+                        diagnosticFilter === 'all'
+                          ? 'bg-blue-600 text-white'
+                          : 'text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      All ({lintIssues.length})
+                    </button>
+                    {errorCount > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setDiagnosticFilter('error')}
+                        className={`px-2 py-0.5 rounded-md font-semibold transition cursor-pointer ${
+                          diagnosticFilter === 'error'
+                            ? 'bg-rose-600 text-white'
+                            : 'text-rose-400 hover:text-rose-300'
+                        }`}
+                      >
+                        Errors ({errorCount})
+                      </button>
+                    )}
+                    {warningCount > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setDiagnosticFilter('warning')}
+                        className={`px-2 py-0.5 rounded-md font-semibold transition cursor-pointer ${
+                          diagnosticFilter === 'warning'
+                            ? 'bg-amber-600 text-white'
+                            : 'text-amber-400 hover:text-amber-300'
+                        }`}
+                      >
+                        Warnings ({warningCount})
+                      </button>
+                    )}
+                    {infoCount > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setDiagnosticFilter('info')}
+                        className={`px-2 py-0.5 rounded-md font-semibold transition cursor-pointer ${
+                          diagnosticFilter === 'info'
+                            ? 'bg-sky-600 text-white'
+                            : 'text-sky-400 hover:text-sky-300'
+                        }`}
+                      >
+                        Tips ({infoCount})
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => setIsDiagnosticsOpen(false)}
+                      className="p-1 rounded text-slate-500 hover:text-slate-300 transition cursor-pointer ml-1"
+                      title="Hide diagnostics panel"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Diagnostics List */}
+                <div className="flex-1 overflow-y-auto p-2 space-y-1.5 font-sans">
+                  {lintIssues.length === 0 ? (
+                    <div className="py-4 px-3 flex items-center justify-center gap-2 text-xs text-emerald-400">
+                      <CheckCircle2 className="w-4 h-4" />
+                      <span className="font-semibold">
+                        Clean Custom Styles — No syntax errors or invalid Bootstrap class usages detected.
+                      </span>
+                    </div>
+                  ) : filteredIssues.length === 0 ? (
+                    <div className="py-3 px-3 text-center text-xs text-slate-500">
+                      No issues matching this filter.
+                    </div>
+                  ) : (
+                    filteredIssues.map((issue) => (
+                      <div
+                        key={issue.id}
+                        className={`px-3 py-2 rounded-lg border text-xs flex items-start justify-between gap-3 transition-colors ${
+                          issue.severity === 'error'
+                            ? 'bg-rose-950/30 border-rose-800/50 text-rose-200'
+                            : issue.severity === 'warning'
+                            ? 'bg-amber-950/30 border-amber-800/50 text-amber-200'
+                            : 'bg-sky-950/30 border-sky-800/50 text-sky-200'
+                        }`}
+                      >
+                        <div className="flex items-start gap-2.5 min-w-0 flex-1">
+                          {issue.severity === 'error' ? (
+                            <AlertCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+                          ) : issue.severity === 'warning' ? (
+                            <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                          ) : (
+                            <Info className="w-4 h-4 text-sky-400 shrink-0 mt-0.5" />
+                          )}
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2 flex-wrap mb-0.5">
+                              <button
+                                type="button"
+                                onClick={() => handleJumpToLine(issue.line)}
+                                className="font-mono text-[10px] font-bold px-1.5 py-0.2 rounded bg-black/40 hover:bg-black/70 text-slate-300 border border-white/10 transition cursor-pointer"
+                                title="Jump to line in editor"
+                              >
+                                Line {issue.line}
+                              </button>
+                              <span
+                                className={`text-[9px] font-extrabold uppercase px-1.5 py-0.2 rounded font-mono ${
+                                  issue.severity === 'error'
+                                    ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+                                    : issue.severity === 'warning'
+                                    ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                                    : 'bg-sky-500/20 text-sky-300 border border-sky-500/30'
+                                }`}
+                              >
+                                {issue.rule.replace(/-/g, ' ')}
+                              </span>
+                            </div>
+                            <p className="text-[11.5px] leading-relaxed text-slate-200">
+                              {issue.message}
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Quick Fix Button */}
+                        {issue.suggestedFix && (
+                          <button
+                            type="button"
+                            onClick={() => handleApplyQuickFix(issue)}
+                            className="shrink-0 px-2.5 py-1 rounded-md text-[11px] font-bold bg-white/10 hover:bg-white/20 text-white border border-white/20 transition cursor-pointer flex items-center gap-1 shadow-xs"
+                            title={issue.suggestedFix.label}
+                          >
+                            <Sparkles className="w-3 h-3 text-cyan-300" />
+                            <span>Quick Fix</span>
+                          </button>
+                        )}
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* OPTIONAL 3RD PANE: LIVE REAL-TIME SANDBOX PREVIEW */}
@@ -862,6 +1181,37 @@ export const BlockCodeEditorModal: React.FC<BlockCodeEditorModalProps> = ({
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
               <span>Scoped to <code className="text-cyan-300 font-mono">#block-{block.id}</code></span>
             </span>
+            <span className="hidden md:inline text-slate-600">•</span>
+            <button
+              type="button"
+              id="footer-css-lint-status"
+              onClick={() => setIsDiagnosticsOpen((prev) => !prev)}
+              className={`flex items-center gap-1.5 px-2 py-0.5 rounded font-mono text-[11px] transition cursor-pointer ${
+                errorCount > 0
+                  ? 'text-rose-400 hover:text-rose-300 font-bold bg-rose-500/10'
+                  : warningCount > 0
+                  ? 'text-amber-400 hover:text-amber-300 font-semibold bg-amber-500/10'
+                  : 'text-emerald-400 hover:text-emerald-300'
+              }`}
+              title="Toggle CSS Diagnostics drawer"
+            >
+              {errorCount > 0 ? (
+                <>
+                  <AlertCircle className="w-3.5 h-3.5" />
+                  <span>{errorCount} {errorCount === 1 ? 'error' : 'errors'}</span>
+                </>
+              ) : warningCount > 0 ? (
+                <>
+                  <AlertTriangle className="w-3.5 h-3.5" />
+                  <span>{warningCount} {warningCount === 1 ? 'warning' : 'warnings'}</span>
+                </>
+              ) : (
+                <>
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  <span>CSS Valid</span>
+                </>
+              )}
+            </button>
             <span className="hidden md:inline text-slate-600">•</span>
             <span className="hidden md:inline">
               Press <kbd className="px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 font-mono text-[10px]">Ctrl+S</kbd> to save &amp; apply
